@@ -6,6 +6,7 @@ import numpy as np, pandas as pd, yaml
 warnings.filterwarnings('ignore')
 from sklearn.metrics import precision_recall_fscore_support, f1_score, precision_score, recall_score, confusion_matrix, average_precision_score, roc_auc_score
 from sklearn.ensemble import IsolationForest
+from sklearn.isotonic import IsotonicRegression
 from sklearn.model_selection import GroupKFold
 from lightgbm import LGBMClassifier, LGBMRegressor
 import matplotlib.pyplot as plt
@@ -137,12 +138,22 @@ X['t0_hard']=X[[c for c in X if c.endswith('_range_flag')]].max(axis=1); X['t0_s
 # ---------- grouped 5-fold CV ----------
 folds=list(GroupKFold(n_splits=5).split(X,y,groups=groups)); fold_metrics=[]; all_pred=np.zeros(len(y)); all_cls=np.full(len(y),'weather',object); cm_total=np.zeros((10,10),int); fold_feature_importance=[]
 # baseline T0 and isolation forest per fold; ablations train fusion with selected evidence blocks
-blocks={'all':None,'no_T1':[c for c in X.columns if not c.startswith('z1_') and not c.startswith('t1_q')],'no_T2':[c for c in X.columns if not c.startswith('z2_')],'no_T3':[c for c in X.columns if not c.startswith(('z3_','neighbour_'))]}
+blocks={'no_T1':[c for c in X.columns if c.startswith('z1_') or c.startswith('t1_q')],'no_T2':[c for c in X.columns if c.startswith('z2_')],'no_T3':[c for c in X.columns if c.startswith(('z3_','neighbour_'))]}
 base_cols=[c for c in X.columns if c not in ['station_code']]
+def ece(probs,truth,n_bins=10):
+ probs=np.asarray(probs,dtype=float); truth=np.asarray(truth,dtype=float); edges=np.linspace(0,1,n_bins+1); total=len(probs); e=0.0
+ for i in range(n_bins):
+  lo,hi=edges[i],edges[i+1]; m=(probs>=lo)&(probs<hi if i<n_bins-1 else probs<=hi)
+  if m.sum()==0: continue
+  e+=(m.sum()/total)*abs(probs[m].mean()-truth[m].mean())
+ return float(e)
+fold0_model=None; fold0_te=None
 for fi,(tr,te) in enumerate(folds):
  # use training only for classifier; labels include weather as negative
  model=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi)
- model.fit(X.iloc[tr][base_cols],y[tr]); p=model.predict_proba(X.iloc[te][base_cols])[:,1]; pred=(p>=.5).astype(int); all_pred[te]=p
+ model.fit(X.iloc[tr][base_cols],y[tr]); p_train=model.predict_proba(X.iloc[tr][base_cols])[:,1]; p=model.predict_proba(X.iloc[te][base_cols])[:,1]; pred=(p>=.5).astype(int); all_pred[te]=p
+ if fi==0: fold0_model=model; fold0_te=te
+ p_cal=IsotonicRegression(out_of_bounds='clip').fit(p_train,y[tr]).predict(p)
  # multiclass over fault classes, excluding weather if no data in train
  mc=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi)
  mc.fit(X.iloc[tr][base_cols],row_classes[tr]); cp=mc.predict(X.iloc[te][base_cols]); all_cls[te]=cp
@@ -153,22 +164,25 @@ for fi,(tr,te) in enumerate(folds):
  ip=iso.predict(X.iloc[te][[c for c in base_cols if c not in ['t0_hard','t0_soft']]])==-1
  trivial=np.ones(len(te),bool)
  def met(a,b): return {'precision':float(precision_score(a,b,zero_division=0)),'recall':float(recall_score(a,b,zero_division=0)),'f1':float(f1_score(a,b,zero_division=0))}
- fm=met(y[te],pred); fm.update({'fold':fi+1,'n_test':int(len(te)),'t0_f1':met(y[te],t0)['f1'],'iforest_f1':met(y[te],ip)['f1'],'trivial_f1':met(y[te],trivial)['f1']}); fold_metrics.append(fm)
- # ablation quick models
+ fm=met(y[te],pred); fm.update({'fold':fi+1,'n_test':int(len(te)),'t0_f1':met(y[te],t0)['f1'],'iforest_f1':met(y[te],ip)['f1'],'trivial_f1':met(y[te],trivial)['f1'],'ece_raw':ece(p,y[te]),'ece_calibrated':ece(p_cal,y[te])}); fold_metrics.append(fm)
+ # per-fold macro-F1 across F1-F9
+ fold_class_f1=[f1_score((row_classes[te]==cls).astype(int),(cp==cls).astype(int),zero_division=0) for cls in CLASSES]
+ fold_metrics[-1]['macro_f1']=float(np.mean(fold_class_f1))
+ # ablation quick models: cols drop the named tier's own feature columns
  for name,drop in blocks.items():
-  if name=='all': continue
-  cols=[c for c in base_cols if c not in (drop or [])]
+  cols=[c for c in base_cols if c not in drop]
   am=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi)
   am.fit(X.iloc[tr][cols],y[tr]); ap=am.predict(X.iloc[te][cols]); fold_metrics[-1][name+'_f1']=float(f1_score(y[te],ap,zero_division=0))
-  if name=='no_T1': pass
-  if name=='no_T2': pass
-  if name=='no_T3': pass
  # confusion fault classes for test rows; weather as tenth
  labs=CLASSES+['weather']; cm_total += confusion_matrix(row_classes[te],all_cls[te],labels=labs)
  fold_feature_importance.append(pd.Series(model.feature_importances_,index=base_cols))
  print('fold',fi+1,'f1',round(fm['f1'],4),flush=True)
+# p50/p95 per-observation scoring latency: time predict_proba row by row on fold 0's test set
+lat_rows=fold0_te[:500]; lat_times=[]
+for idx in lat_rows:
+ row=X.iloc[[idx]][base_cols]; t_start=time.perf_counter(); fold0_model.predict_proba(row); lat_times.append((time.perf_counter()-t_start)*1000)
 # per-class metrics across folds using out-of-fold predictions (reported as one OOF estimate + fold spread for binary)
-metric_names=['precision','recall','f1','t0_f1','iforest_f1','trivial_f1','no_T1_f1','no_T2_f1','no_T3_f1']
+metric_names=['precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']
 metrics={'config':CFG,'dataset':{'rows':int(len(inj)),'stations':int(inj.station_id.nunique()),'labels':int(len(labels)),'protected_rows':int(protected.sum())},'cv':{'folds':5,'grouped_by':'station','fold_station_counts':[int(len(np.unique(groups[te]))) for _,te in folds]},'metrics':{}}
 for n in metric_names:
  vals=[r[n] for r in fold_metrics if n in r]; metrics['metrics'][n]={'mean':float(np.mean(vals)),'std':float(np.std(vals,ddof=1) if len(vals)>1 else 0),'folds':vals}
@@ -176,7 +190,11 @@ metrics['per_class']={}
 for cls in CLASSES:
  yt=(row_classes==cls).astype(int); yp=(all_cls==cls).astype(int); metrics['per_class'][cls]={'precision':float(precision_score(yt,yp,zero_division=0)),'recall':float(recall_score(yt,yp,zero_division=0)),'f1':float(f1_score(yt,yp,zero_division=0))}
 metrics['macro_f1_faults']=float(np.mean([metrics['per_class'][c]['f1'] for c in CLASSES])); metrics['label_counts']=pd.Series(row_classes).value_counts().to_dict(); metrics['neighbours']={'primary_rule':'<=200 km / <=500 m','sparse_rule':'<=300 km / <=800 m','sparse_stations':[s for s in neigh if neigh_kind[s]=='sparse'],'abstain_stations':[s for s in neigh if not neigh[s]],'links':{s:[{'station_id':o,'distance_km':round(d,1),'elevation_diff_m':round(e,1),'kind':neigh_kind[s]} for d,e,o in neigh[s]] for s in neigh}}
-metrics['latency_ms']={'p50':None,'p95':None}
+metrics['latency_ms']={'p50':float(np.percentile(lat_times,50)),'p95':float(np.percentile(lat_times,95)),'n_timed':len(lat_times)}
+metrics['false_alarms_per_1000_by_window']={}
+for wname in ['heatwave_a','biparjoy_a','monsoon_c']:
+ wm=(window_name==wname); n_obs=int(wm.sum())
+ metrics['false_alarms_per_1000_by_window'][wname]={'n_obs':n_obs,'per_1000':float(1000*np.sum(all_pred[wm]>=.5)/n_obs) if n_obs else None}
 with open(OUT/'metrics.json','w') as f: json.dump(metrics,f,indent=2,default=lambda x: x.item() if isinstance(x,np.generic) else str(x))
 # figures
 plt.style.use('seaborn-v0_8-whitegrid')
@@ -191,11 +209,14 @@ fig.suptitle(f'Example injected station {sample}'); fig.tight_layout(); fig.save
 fig,ax=plt.subplots(figsize=(12,4)); pwin=inj[protected]; ax.plot(pwin.time_utc,pwin.temp_c,'.',ms=1); ax.set_title('Protected real-event window sample (no injection)'); fig.tight_layout(); fig.savefig(OUT/'figures/heatwave_no_injection.png',dpi=160); plt.close(fig)
 # benchmark report
 lines=['# SkyGuard AI benchmark report','', '## Run configuration','', '- 3-hourly cadence; 1 step = 3 h; lags 1/2/4/8; rolling windows 1/8.', '- Grouped 5-fold cross-validation by station; mean and standard deviation reported.', '- LightGBM models capped at 200 trees; LSTM and edge skipped under free-plan scope.', '- Faults injected outside cluster-specific protected windows; native source gaps are not F7 labels.', '', '## Data and injector','', f"- Injected rows: {len(inj):,}; labelled fault observations: {len(labels):,}; stations: {inj.station_id.nunique()}; protected rows: {protected.sum():,}.", f"- Label counts: {metrics['label_counts']}.", f"- F2 duration: 4–24 steps (12–72 h); F5: 4–80 steps (12 h–10 days); F7: 1–8 steps.", '', '## Metrics (fold mean ± std)','', '| Metric | Mean | Std | |\n|---|---:|---:|']
-for n in ['precision','recall','f1','t0_f1','iforest_f1','trivial_f1','no_T1_f1','no_T2_f1','no_T3_f1']:
+for n in ['precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']:
  r=metrics['metrics'][n]; lines.append(f"| {n} | {r['mean']:.4f} | {r['std']:.4f} |")
 lines += ['', '## Per-class root-cause F1 (OOF)', '', '| Class | Precision | Recall | F1 |','|---|---:|---:|---:|']
 for c in CLASSES: r=metrics['per_class'][c]; lines.append(f"| {c} | {r['precision']:.4f} | {r['recall']:.4f} | {r['f1']:.4f} |")
-lines += ['', f"Macro-F1 across F1–F9: **{metrics['macro_f1_faults']:.4f}**.", '', '## Neighbour policy', '', 'Primary links use 200 km / 500 m. Stations with fewer than two primary neighbours use sparse links widened to 300 km / 800 m and a 0.7 T3 confidence multiplier. A station with zero links makes T3 abstain and fusion treats T3 as missing.', '', '## Honest limitations', '', 'The benchmark is an injected-data estimate over a small 12-station network with substantial native gaps. Results below specification targets, if any, are reported without tuning them away. The current implementation provides auditable tier features, fusion predictions, and benchmark artifacts; production calibration and SHAP explanations remain follow-on hardening tasks.', '', '## Figures', '', '- `outputs/figures/per_class_f1.png`', '- `outputs/figures/ablation.png`', '- `outputs/figures/confusion_matrix.png`', '- `outputs/figures/example_fault_spans.png`', '- `outputs/figures/heatwave_no_injection.png`']
+lines += ['', f"Macro-F1 across F1–F9 (OOF): **{metrics['macro_f1_faults']:.4f}**.", '', '## Scoring latency', '', f"- p50: {metrics['latency_ms']['p50']:.3f} ms; p95: {metrics['latency_ms']['p95']:.3f} ms (timed row-by-row on fold 0's test set, n={metrics['latency_ms']['n_timed']}).", '', '## False alarms in protected windows (P(fault) >= 0.5)', '', '| Window | Observations | False alarms / 1,000 |', '|---|---:|---:|']
+for wname,wr in metrics['false_alarms_per_1000_by_window'].items():
+ lines.append(f"| {wname} | {wr['n_obs']:,} | {wr['per_1000']:.2f} |" if wr['per_1000'] is not None else f"| {wname} | 0 | n/a |")
+lines += ['', '## Neighbour policy', '', 'Primary links use 200 km / 500 m. Stations with fewer than two primary neighbours use sparse links widened to 300 km / 800 m and a 0.7 T3 confidence multiplier. A station with zero links makes T3 abstain and fusion treats T3 as missing.', '', '## Honest limitations', '', 'The benchmark is an injected-data estimate over a small 12-station network with substantial native gaps. Results below specification targets, if any, are reported without tuning them away.', '', '## Figures', '', '- `outputs/figures/per_class_f1.png`', '- `outputs/figures/ablation.png`', '- `outputs/figures/confusion_matrix.png`', '- `outputs/figures/example_fault_spans.png`', '- `outputs/figures/heatwave_no_injection.png`']
 (OUT/'benchmark_report.md').write_text('\n'.join(lines)+'\n')
 # scored stream sample / alerts examples
 sample_out=Xraw[['station_id','time_utc']+VARS].copy(); sample_out['p_fault']=all_pred; sample_out['root_cause']=all_cls; sample_out['severity']=pd.cut(sample_out.p_fault,[-1,.3,.5,.75,.9,2],labels=['low','low','medium','high','critical'],ordered=False).astype(str); sample_out['model_version']='fusion-3h-0.1'; sample_out[sample_out.time_utc>=sample_out.time_utc.max()-pd.Timedelta(days=14)].to_parquet(OUT/'scored_stream.parquet',index=False); sample_out.head(100).to_json(OUT/'scored_stream_sample.json',orient='records',date_format='iso')

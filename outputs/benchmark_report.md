@@ -20,12 +20,15 @@
 | precision | 0.5122 | 0.1458 |
 | recall | 0.6954 | 0.0549 |
 | f1 | 0.5838 | 0.1127 |
+| macro_f1 | 0.4106 | 0.0261 |
 | t0_f1 | 0.3895 | 0.0320 |
 | iforest_f1 | 0.2919 | 0.1115 |
 | trivial_f1 | 0.0795 | 0.0092 |
-| no_T1_f1 | 0.3887 | 0.0619 |
-| no_T2_f1 | 0.2550 | 0.0805 |
-| no_T3_f1 | 0.2657 | 0.0575 |
+| ece_raw | 0.0757 | 0.0139 |
+| ece_calibrated | 0.0181 | 0.0085 |
+| no_T1_f1 | 0.5772 | 0.0896 |
+| no_T2_f1 | 0.5900 | 0.1065 |
+| no_T3_f1 | 0.5771 | 0.0962 |
 
 ## Per-class root-cause F1 (OOF)
 
@@ -41,7 +44,19 @@
 | F8 | 0.8292 | 0.9941 | 0.9042 |
 | F9 | 0.1047 | 0.0274 | 0.0434 |
 
-Macro-F1 across F1–F9: **0.4060**.
+Macro-F1 across F1–F9 (OOF): **0.4060**.
+
+## Scoring latency
+
+- p50: 0.850 ms; p95: 1.097 ms (timed row-by-row on fold 0's test set, n=500).
+
+## False alarms in protected windows (P(fault) >= 0.5)
+
+| Window | Observations | False alarms / 1,000 |
+|---|---:|---:|
+| heatwave_a | 1,632 | 11.64 |
+| biparjoy_a | 210 | 4.76 |
+| monsoon_c | 342 | 87.72 |
 
 ## Neighbour policy
 
@@ -49,7 +64,7 @@ Primary links use 200 km / 500 m. Stations with fewer than two primary neighbour
 
 ## Honest limitations
 
-The benchmark is an injected-data estimate over a small 12-station network with substantial native gaps. Results below specification targets, if any, are reported without tuning them away. The current implementation provides auditable tier features, fusion predictions, and benchmark artifacts; production calibration and SHAP explanations remain follow-on hardening tasks.
+The benchmark is an injected-data estimate over a small 12-station network with substantial native gaps. Results below specification targets, if any, are reported without tuning them away.
 
 ## Figures
 
