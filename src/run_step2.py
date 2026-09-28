@@ -9,61 +9,23 @@ from sklearn.ensemble import IsolationForest
 from sklearn.model_selection import GroupKFold
 from lightgbm import LGBMClassifier, LGBMRegressor
 import matplotlib.pyplot as plt
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from skyguard_inject import inject_faults, VARS, CLASSES
 
 ROOT=Path(__file__).resolve().parents[1]; OUT=ROOT/'outputs'; BENCH=ROOT/'data/bench'; CFG=yaml.safe_load(open(ROOT/'config/cadence_3h.yaml'))
 OUT.mkdir(exist_ok=True); (OUT/'figures').mkdir(exist_ok=True); BENCH.mkdir(exist_ok=True)
-SEED=42; rng=np.random.default_rng(SEED); VARS=['temp_c','mslp_hpa','rh_pct']; CLASSES=['F1','F2','F3','F4','F5','F6','F7','F8','F9']
+SEED=42; rng=np.random.default_rng(SEED)
 clean=pd.read_parquet(ROOT/'data/clean/observations_clean.parquet').sort_values(['station_id','time_utc']).reset_index(drop=True)
 clean['station_id']=clean.station_id.astype(str); clean['time_utc']=pd.to_datetime(clean.time_utc,utc=True)
 stations=pd.read_csv(ROOT/'stations.csv'); stations['station_id']=stations.station_id.astype(str)
 # exact protected windows, cluster-specific
 windows=[('heatwave_a','a',pd.Timestamp('2024-05-16T18:30Z'),pd.Timestamp('2024-06-19T18:29:59Z')),('biparjoy_a','a',pd.Timestamp('2023-06-16T18:00Z'),pd.Timestamp('2023-06-21T00:00Z')),('monsoon_c','c',pd.Timestamp('2024-07-23T00:00Z'),pd.Timestamp('2024-07-30T00:00Z'))]
-cluster_by=dict(zip(stations.station_id,stations.cluster))
 protected=np.zeros(len(clean),bool)
-for _,c,a,b in windows: protected |= (clean.cluster==c)&clean.time_utc.between(a,b,inclusive='both')
-# ---------- injector ----------
-def valid_start(df, i, n):
- if i+n>len(df): return False
- return bool(df.iloc[i:i+n][VARS].notna().all(axis=1).all())
-def inject_faults(base):
- d=base.copy(); labels=[]; d['injected_faults']=''
- # eligible complete source rows, outside protected; choose starts per class/station
- for sid,g0 in d.groupby('station_id',sort=False):
-  g=g0.reset_index(); eligible=np.flatnonzero((~protected[g['index'].to_numpy()]) & g[VARS].notna().all(axis=1).to_numpy())
-  if len(eligible)<30: continue
-  # one event per class per station at about 2.7% total station-time, overlaps allowed for realism
-  for cls in CLASSES:
-   count=max(1, int(len(eligible)*0.0035)); starts=rng.choice(eligible,size=min(count,len(eligible)),replace=False)
-   for st in starts:
-    if cls=='F1': n=1; var=rng.choice(VARS); mag=float(rng.uniform(3,15)); sign=rng.choice([-1,1]); sigma=float(g.loc[max(0,st-24):min(len(g)-1,st+24),var].std() or 1); idx=[st]
-    elif cls=='F2': n=int(rng.integers(4,25)); var=rng.choice(VARS); idx=list(range(st,min(st+n,len(g)))); mag=0
-    elif cls=='F3': n=int(rng.integers(56,361)); var=rng.choice(['temp_c','rh_pct','mslp_hpa']); idx=list(range(st,min(st+n,len(g)))); mag=float(rng.uniform(0.5,3.0))*rng.choice([-1,1])
-    elif cls=='F4': n=int(rng.integers(8,81)); var=rng.choice(VARS); idx=list(range(st,min(st+n,len(g)))); mag=float(rng.uniform({'temp_c':.5,'rh_pct':3,'mslp_hpa':.5}[var],{'temp_c':4,'rh_pct':15,'mslp_hpa':5}[var]))*rng.choice([-1,1])
-    elif cls=='F5': n=int(rng.integers(4,81)); var=rng.choice(VARS); idx=list(range(st,min(st+n,len(g)))); mag=float(rng.uniform(1.5,5))
-    elif cls=='F6': n=int(rng.integers(4,81)); var=rng.choice(['temp_c','rh_pct']); idx=list(range(st,min(st+n,len(g)))); mag=100.0 if var=='rh_pct' else 60.0
-    elif cls=='F7': n=int(rng.integers(1,9)); var='all'; idx=list(range(st,min(st+n,len(g)))); mag=0
-    elif cls=='F8': n=1; var=rng.choice(VARS); idx=[st]; mag=0
-    else: n=int(rng.integers(8,161)); var=rng.choice(VARS); idx=list(range(st,min(st+n,len(g)))); mag=0
-    if len(idx)<1: continue
-    for j in idx:
-     row=int(g.iloc[j]['index']); t=d.at[row,'time_utc']
-     if protected[row]: continue
-     if cls != 'F7' and var != 'all' and pd.isna(d.at[row,var]): continue
-     if cls=='F1': d.at[row,var]=float(d.at[row,var])+sign*mag*sigma
-     elif cls=='F2': d.at[row,var]=float(d.iloc[int(g.iloc[st]['index'])][var])
-     elif cls=='F3': d.at[row,var]=float(d.at[row,var])+mag*(j-st)/max(1,n-1)
-     elif cls=='F4': d.at[row,var]=float(d.at[row,var])+mag
-     elif cls=='F5': d.at[row,var]=float(d.at[row,var])+rng.normal(0,mag*float(g[var].std() or 1))
-     elif cls=='F6': d.at[row,var]=mag
-     elif cls=='F7': d.loc[row,VARS]=np.nan
-     elif cls=='F8': d.at[row,var]= -9999.0 if rng.random()<.5 else 0.0
-     elif cls=='F9':
-      other=g[(g.time_utc.dt.hour==g.iloc[j].time_utc.hour)&(g.index!=j)&g[var].notna()]
-      if len(other): d.at[row,var]=float(other.iloc[rng.integers(len(other))][var])
-     d.at[row,'injected_faults']=str(d.at[row,'injected_faults'])+cls+';'
-     labels.append({'station_id':sid,'time_utc':t,'variable':var,'class':cls,'start':g.iloc[st].time_utc,'end':g.iloc[min(len(g)-1,st+n-1)].time_utc,'magnitude':float(abs(mag))})
- return d,pd.DataFrame(labels)
-inj,labels=inject_faults(clean)
+window_name=np.full(len(clean),'',dtype=object)
+for name,c,a,b in windows:
+ m=(clean.cluster==c)&clean.time_utc.between(a,b,inclusive='both'); protected|=m; window_name[m.to_numpy()]=name
+inj,labels=inject_faults(clean,protected,seed=SEED)
 if labels.empty: raise RuntimeError('injector produced no labels')
 labels.to_parquet(BENCH/'labels.parquet',index=False); inj.to_parquet(BENCH/'observations_injected.parquet',index=False)
 # per variable labels, row-level class is first injected class; preserve multi-faults
