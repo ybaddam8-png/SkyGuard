@@ -2,7 +2,9 @@
 
 Injects 9 fault classes (F1-F9) into a fraction of station-time. Target overall
 coverage is 3-5% of rows (spec:137, config `injector.rate: 0.03`), with no single
-class exceeding 30% of faulty rows.
+class exceeding 30% of faulty rows. Only F1 (gross spike) and F8 (sentinel/bit
+corruption) are allowed to leave the physical plausible range; every other class
+is clipped back into range after being applied.
 """
 from __future__ import annotations
 import numpy as np
@@ -10,9 +12,17 @@ import pandas as pd
 
 VARS = ['temp_c', 'mslp_hpa', 'rh_pct']
 CLASSES = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9']
+BOUNDS = {'temp_c': (-80.0, 60.0), 'mslp_hpa': (870.0, 1085.0), 'rh_pct': (0.0, 100.0)}
 CLASS_BUDGET_CAP = 0.28  # keep every class comfortably under the 30% requirement
 TARGET_RATE_RANGE = (0.032, 0.045)  # tuned so realistic event-length overshoot lands the
                                      # final overall coverage inside the required 3-5% band
+
+
+def _clip_if_needed(cls, var, value):
+    if cls in ('F1', 'F8'):
+        return value
+    lo, hi = BOUNDS[var]
+    return min(max(value, lo), hi)
 
 
 def _class_budgets(rng, budget_rows):
@@ -76,7 +86,7 @@ def inject_faults(base, protected, seed=42):
                 n = int(rng.integers(4, 81)); var = rng.choice(VARS); idx = list(range(st, min(st + n, len(g)))); mag = float(rng.uniform(1.5, 5))
             elif cls == 'F6':
                 n = int(rng.integers(4, 81)); var = rng.choice(['temp_c', 'rh_pct']); idx = list(range(st, min(st + n, len(g))))
-                mag = 100.0 if var == 'rh_pct' else 60.0
+                mag = (100.0 if rng.random() < .5 else 0.0) if var == 'rh_pct' else 60.0
             elif cls == 'F7':
                 n = int(rng.integers(1, 9)); var = 'all'; idx = list(range(st, min(st + n, len(g)))); mag = 0
             elif cls == 'F8':
@@ -93,15 +103,15 @@ def inject_faults(base, protected, seed=42):
                 if cls != 'F7' and var != 'all' and pd.isna(d.at[row, var]):
                     continue
                 if cls == 'F1':
-                    d.at[row, var] = float(d.at[row, var]) + sign * mag * sigma
+                    d.at[row, var] = _clip_if_needed(cls, var, float(d.at[row, var]) + sign * mag * sigma)
                 elif cls == 'F2':
-                    d.at[row, var] = float(d.iloc[int(g.iloc[st]['index'])][var])
+                    d.at[row, var] = _clip_if_needed(cls, var, float(d.iloc[int(g.iloc[st]['index'])][var]))
                 elif cls == 'F3':
-                    d.at[row, var] = float(d.at[row, var]) + mag * (j - st) / max(1, n - 1)
+                    d.at[row, var] = _clip_if_needed(cls, var, float(d.at[row, var]) + mag * (j - st) / max(1, n - 1))
                 elif cls == 'F4':
-                    d.at[row, var] = float(d.at[row, var]) + mag
+                    d.at[row, var] = _clip_if_needed(cls, var, float(d.at[row, var]) + mag)
                 elif cls == 'F5':
-                    d.at[row, var] = float(d.at[row, var]) + rng.normal(0, mag * float(g[var].std() or 1))
+                    d.at[row, var] = _clip_if_needed(cls, var, float(d.at[row, var]) + rng.normal(0, mag * float(g[var].std() or 1)))
                 elif cls == 'F6':
                     d.at[row, var] = mag
                 elif cls == 'F7':
@@ -111,7 +121,7 @@ def inject_faults(base, protected, seed=42):
                 elif cls == 'F9':
                     other = g[(g.time_utc.dt.hour == g.iloc[j].time_utc.hour) & (g.index != j) & g[var].notna()]
                     if len(other):
-                        d.at[row, var] = float(other.iloc[rng.integers(len(other))][var])
+                        d.at[row, var] = _clip_if_needed(cls, var, float(other.iloc[rng.integers(len(other))][var]))
                 d.at[row, 'injected_faults'] = str(d.at[row, 'injected_faults']) + cls + ';'
                 labels.append({'station_id': sid, 'time_utc': t, 'variable': var, 'class': cls,
                                 'start': g.iloc[st].time_utc, 'end': g.iloc[min(len(g) - 1, st + n - 1)].time_utc,

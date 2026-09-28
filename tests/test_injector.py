@@ -58,3 +58,32 @@ def test_seed_42_reproducible(clean_and_protected):
     pd.testing.assert_frame_equal(labels1, labels2)
 
 
+def test_bounds_hold_except_f1_f8(clean_and_protected):
+    clean, protected = clean_and_protected
+    inj, _ = inject_faults(clean, protected, seed=42)
+    for v, (lo, hi) in BOUNDS.items():
+        out_of_range = inj[(inj[v] < lo) | (inj[v] > hi)]
+        offending = out_of_range[~out_of_range.injected_faults.str.contains('F1;|F8;')]
+        assert len(offending) == 0, f'{v} left range without F1/F8: {len(offending)} rows'
+
+
+def test_f6_pins_exactly(clean_and_protected):
+    # only check rows where F6 is the sole fault applied - a later stacked fault
+    # (e.g. F7 dropout) is allowed to overwrite F6's pin, same as any other overlap.
+    clean, protected = clean_and_protected
+    inj, labels = inject_faults(clean, protected, seed=42)
+    f6 = labels[labels['class'] == 'F6']
+    checked = 0
+    for _, r in f6.iterrows():
+        row = inj[(inj.station_id == r.station_id) & (inj.time_utc == r.time_utc)]
+        if row.empty or row.iloc[0]['injected_faults'] != 'F6;':
+            continue
+        val = row.iloc[0][r.variable]
+        if r.variable == 'rh_pct':
+            assert val in (100.0, 0.0)
+        else:
+            assert val == 60.0
+        checked += 1
+    assert checked > 0
+
+

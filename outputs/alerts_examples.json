@@ -1,59 +1,5 @@
 [
   {
-    "station_id": "43003",
-    "time_utc": "2025-01-11T12:00:00+00:00",
-    "variable": "all",
-    "observed": {
-      "temp_c": 0.0,
-      "mslp_hpa": 1012.0,
-      "rh_pct": -9999.0
-    },
-    "p_fault": 0.999716288661693,
-    "severity": "critical",
-    "root_cause": "F8",
-    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F8 evidence.",
-    "top_factors": [],
-    "imputed": null,
-    "tier_scores": {},
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "42170",
-    "time_utc": "2024-12-05T21:00:00+00:00",
-    "variable": "all",
-    "observed": {
-      "temp_c": 99.11507355868866,
-      "mslp_hpa": 1015.2,
-      "rh_pct": 82.0
-    },
-    "p_fault": 0.9996619417824842,
-    "severity": "critical",
-    "root_cause": "F1",
-    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F1 evidence.",
-    "top_factors": [],
-    "imputed": null,
-    "tier_scores": {},
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "43110",
-    "time_utc": "2025-05-04T18:00:00+00:00",
-    "variable": "all",
-    "observed": {
-      "temp_c": 27.6,
-      "mslp_hpa": 1008.6,
-      "rh_pct": -9999.0
-    },
-    "p_fault": 0.9996302371665354,
-    "severity": "critical",
-    "root_cause": "F8",
-    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F8 evidence.",
-    "top_factors": [],
-    "imputed": null,
-    "tier_scores": {},
-    "model_version": "fusion-3h-0.1"
-  },
-  {
     "station_id": "42921",
     "time_utc": "2025-06-30T12:00:00+00:00",
     "variable": "all",
@@ -62,7 +8,7 @@
       "mslp_hpa": 1001.2,
       "rh_pct": -9999.0
     },
-    "p_fault": 0.9995970624163738,
+    "p_fault": 0.9998532004954728,
     "severity": "critical",
     "root_cause": "F8",
     "explanation": "Tier fusion assigned 1.00 fault probability; inspect F8 evidence.",
@@ -72,69 +18,15 @@
     "model_version": "fusion-3h-0.1"
   },
   {
-    "station_id": "42181",
-    "time_utc": "2025-07-30T21:00:00+00:00",
+    "station_id": "43003",
+    "time_utc": "2025-01-11T12:00:00+00:00",
     "variable": "all",
     "observed": {
-      "temp_c": 27.2,
-      "mslp_hpa": 998.6,
+      "temp_c": 0.0,
+      "mslp_hpa": 1012.0,
       "rh_pct": -9999.0
     },
-    "p_fault": 0.9995913905871393,
-    "severity": "critical",
-    "root_cause": "F8",
-    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F8 evidence.",
-    "top_factors": [],
-    "imputed": null,
-    "tier_scores": {},
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "43110",
-    "time_utc": "2023-07-12T15:00:00+00:00",
-    "variable": "all",
-    "observed": {
-      "temp_c": 27.8,
-      "mslp_hpa": 1006.9,
-      "rh_pct": -9999.0
-    },
-    "p_fault": 0.9995872570788621,
-    "severity": "critical",
-    "root_cause": "F8",
-    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F8 evidence.",
-    "top_factors": [],
-    "imputed": null,
-    "tier_scores": {},
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "42348",
-    "time_utc": "2025-07-22T18:00:00+00:00",
-    "variable": "all",
-    "observed": {
-      "temp_c": 29.4,
-      "mslp_hpa": 998.8,
-      "rh_pct": -9999.0
-    },
-    "p_fault": 0.9995853996079398,
-    "severity": "critical",
-    "root_cause": "F8",
-    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F8 evidence.",
-    "top_factors": [],
-    "imputed": null,
-    "tier_scores": {},
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "42131",
-    "time_utc": "2023-01-19T12:00:00+00:00",
-    "variable": "all",
-    "observed": {
-      "temp_c": 17.6,
-      "mslp_hpa": 1017.8,
-      "rh_pct": -9999.0
-    },
-    "p_fault": 0.9995839238529689,
+    "p_fault": 0.9998111457298463,
     "severity": "critical",
     "root_cause": "F8",
     "explanation": "Tier fusion assigned 1.00 fault probability; inspect F8 evidence.",
@@ -145,35 +37,143 @@
   },
   {
     "station_id": "43117",
-    "time_utc": "2023-05-29T06:00:00+00:00",
+    "time_utc": "2024-01-17T12:00:00+00:00",
     "variable": "all",
     "observed": {
-      "temp_c": 75.5165249885207,
-      "mslp_hpa": 1006.1,
+      "temp_c": 60.0,
+      "mslp_hpa": 1005.7,
       "rh_pct": 48.0
     },
-    "p_fault": 0.9995676290485381,
+    "p_fault": 0.9997691825378537,
     "severity": "critical",
-    "root_cause": "F1",
-    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F1 evidence.",
+    "root_cause": "F6",
+    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F6 evidence.",
     "top_factors": [],
     "imputed": null,
     "tier_scores": {},
     "model_version": "fusion-3h-0.1"
   },
   {
-    "station_id": "43014",
-    "time_utc": "2023-06-19T21:00:00+00:00",
+    "station_id": "43063",
+    "time_utc": "2023-09-25T15:00:00+00:00",
     "variable": "all",
     "observed": {
-      "temp_c": 65.87559577338439,
-      "mslp_hpa": 1002.2,
-      "rh_pct": 70.0
+      "temp_c": 60.0,
+      "mslp_hpa": 1007.6,
+      "rh_pct": 85.0
     },
-    "p_fault": 0.9995675027185217,
+    "p_fault": 0.9997584939050794,
     "severity": "critical",
-    "root_cause": "F1",
-    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F1 evidence.",
+    "root_cause": "F6",
+    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F6 evidence.",
+    "top_factors": [],
+    "imputed": null,
+    "tier_scores": {},
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "43110",
+    "time_utc": "2025-04-25T00:00:00+00:00",
+    "variable": "all",
+    "observed": {
+      "temp_c": 60.0,
+      "mslp_hpa": 1007.5,
+      "rh_pct": 90.0
+    },
+    "p_fault": 0.999756311881012,
+    "severity": "critical",
+    "root_cause": "F6",
+    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F6 evidence.",
+    "top_factors": [],
+    "imputed": null,
+    "tier_scores": {},
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "43117",
+    "time_utc": "2024-01-17T09:00:00+00:00",
+    "variable": "all",
+    "observed": {
+      "temp_c": 60.0,
+      "mslp_hpa": 1007.2,
+      "rh_pct": 50.0
+    },
+    "p_fault": 0.9997552697865121,
+    "severity": "critical",
+    "root_cause": "F6",
+    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F6 evidence.",
+    "top_factors": [],
+    "imputed": null,
+    "tier_scores": {},
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "43117",
+    "time_utc": "2024-08-25T12:00:00+00:00",
+    "variable": "all",
+    "observed": {
+      "temp_c": 27.6,
+      "mslp_hpa": 1002.8,
+      "rh_pct": -9999.0
+    },
+    "p_fault": 0.9997533243237741,
+    "severity": "critical",
+    "root_cause": "F8",
+    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F8 evidence.",
+    "top_factors": [],
+    "imputed": null,
+    "tier_scores": {},
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "42170",
+    "time_utc": "2025-06-23T21:00:00+00:00",
+    "variable": "all",
+    "observed": {
+      "temp_c": 29.6,
+      "mslp_hpa": 994.5,
+      "rh_pct": -9999.0
+    },
+    "p_fault": 0.9997427623060395,
+    "severity": "critical",
+    "root_cause": "F8",
+    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F8 evidence.",
+    "top_factors": [],
+    "imputed": null,
+    "tier_scores": {},
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "43110",
+    "time_utc": "2025-04-25T03:00:00+00:00",
+    "variable": "all",
+    "observed": {
+      "temp_c": 60.0,
+      "mslp_hpa": 1010.5,
+      "rh_pct": 80.0
+    },
+    "p_fault": 0.999733376345955,
+    "severity": "critical",
+    "root_cause": "F6",
+    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F6 evidence.",
+    "top_factors": [],
+    "imputed": null,
+    "tier_scores": {},
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "43110",
+    "time_utc": "2025-03-28T15:00:00+00:00",
+    "variable": "all",
+    "observed": {
+      "temp_c": 60.0,
+      "mslp_hpa": 1008.2,
+      "rh_pct": 76.0
+    },
+    "p_fault": 0.9997314794759151,
+    "severity": "critical",
+    "root_cause": "F6",
+    "explanation": "Tier fusion assigned 1.00 fault probability; inspect F6 evidence.",
     "top_factors": [],
     "imputed": null,
     "tier_scores": {},
