@@ -1,0 +1,53 @@
+version: "3h-cadence-2026-09-28"
+cadence:
+  name: 3-hourly-synoptic
+  step_hours: 3
+  synoptic_hours_utc: [0, 3, 6, 9, 12, 15, 18, 21]
+  predict_next_step: true
+  resample: exact_timestamp_only
+  interpolation: false
+  forward_fill: false
+lags_steps: [1, 2, 4, 8]
+lags_hours: [3, 6, 12, 24]
+rolling_windows_steps: [1, 8]
+rolling_windows_hours: [3, 24]
+t0:
+  learned_step_limit: station_p99_9_abs_change_per_3h
+  persistence_steps: 4
+  persistence_hours: 12
+  persistence_thresholds: {temp_c: 0.1, mslp_hpa: 0.1, rh_pct: 1.0}
+  rh_saturation_exemption: [97, 100]
+  ranges: {temp_c: [-80, 60], mslp_hpa: [870, 1085], rh_pct: [0, 100]}
+t1:
+  model: LightGBM_quantile
+  max_trees: 200
+t2:
+  pressure_tendency_steps: 1
+  pressure_tendency_hours: 3
+t3:
+  primary_distance_km: 200
+  primary_elevation_diff_m: 500
+  sparse_distance_km: 300
+  sparse_elevation_diff_m: 800
+  min_primary_neighbours: 2
+  confidence_sparse_multiplier: 0.7
+  zero_neighbour_action: abstain
+health:
+  ewma_lambda: 0.06
+  equivalent_hourly_lambda: 0.02
+injector:
+  seed: 42
+  rate: 0.03
+  f1_steps: [1]
+  f2_steps: [4, 24]
+  f5_steps: [4, 80]
+  f7_steps: [1, 8]
+evaluation:
+  grouped_by: station
+  folds: 5
+  report_mean_std: true
+  lstm_baseline: false
+  edge: false
+models:
+  max_trees: 200
+  random_state: 42

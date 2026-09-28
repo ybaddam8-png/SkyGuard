@@ -1,0 +1,118 @@
+# SkyGuard AI — SIH26073 Engine (final data step)
+
+## Status
+
+The observation-only data step is complete. **No fault injection and no model training have been run.**
+
+Scope:
+
+- 12 stations: 6 in cluster **(a)** Delhi-NCR/Rajasthan and 6 in cluster **(c)** Maharashtra.
+- Cluster (b), edge tier, and LSTM baseline are excluded.
+- Future LightGBM models use at most **200 trees**.
+- Evaluation uses grouped **5-fold cross-validation by station**.
+- Current pipeline cadence is **3-hourly synoptic time**: 00, 03, ..., 21 UTC.
+
+## Retrieval and pressure
+
+Meteostat Python 1.7.6 was queried with `model=False`. No `interpolate()` call, forward-fill, or aggregation was used. Only source observations at exact synoptic timestamps are retained.
+
+Meteostat's `pres` parameter is **Air Pressure (MSL)**, not station pressure. It is retained without conversion and renamed:
+
+> `mslp_hpa`: sea-level pressure (station pressure not available from source)
+
+Sources:
+
+- [Meteostat Python hourly API](https://dev.meteostat.net/python/api/meteostat.hourly)
+- [Meteostat meteorological parameters](https://dev.meteostat.net/parameters)
+- [Meteostat interpolation documentation](https://dev.meteostat.net/python/interpolation)
+
+## Candidate scan and selection
+
+The full Meteostat station catalog was scanned for Indian stations within 250 km of the Delhi and Pune reference points: **32 Delhi-area candidates** and **29 Pune-area candidates**. The scan included airports/ICAO stations and WMO/synoptic stations. Every candidate was fetched with `model=False` for 2023–2025 and ranked by complete-triplet coverage on the 3-hourly UTC grid.
+
+Selection rule:
+
+- Keep candidates with complete-triplet synoptic coverage **≥50%**.
+- Target 5–6 stations per cluster.
+- Drop Matheran as requested.
+- Use relaxed neighbour eligibility of **distance ≤200 km and elevation difference ≤500 m**.
+- No selected station is marked `low_coverage`; the fallback floor of 35% was not needed.
+
+The complete 61-candidate ranking is in [`candidate_synoptic_coverage.csv`](data/clean/candidate_synoptic_coverage.csv).
+
+## Final station quality at synoptic hours
+
+Coverage denominators are the exact 8 synoptic hours per day from 2023-01-01 through 2025-12-31: **8,768 timestamps per station**. Per-variable coverage counts non-null source observations at those exact timestamps; complete-triplet coverage requires all `temp_c`, `mslp_hpa`, and `rh_pct` to be present.
+
+| Cluster | ID | Station | Type | Distance (km) | Native interval | Temp % | MSLP % | RH % | Complete triplet % | Low coverage |
+|---|---:|---|---|---:|---|---:|---:|---:|---:|---|
+| a | 42181 | New Delhi / Palam | airport/ICAO | 10.30 | hourly | 99.6578 | 99.6008 | 99.6578 | 99.6008 | no |
+| a | 42182 | New Delhi / Safdarjung | airport/ICAO | 3.13 | 3-hourly | 85.3330 | 85.3216 | 85.2760 | 85.2418 | no |
+| a | 42348 | Jaipur / Sanganer | airport/ICAO | 242.95 | hourly | 99.5324 | 99.5096 | 99.5096 | 99.4868 | no |
+| a | 42170 | Churu | WMO | 227.79 | 3-hourly | 85.2760 | 85.1391 | 85.2076 | 85.0707 | no |
+| a | 42103 | Ambala | WMO | 204.69 | 3-hourly | 84.7400 | 84.5005 | 84.6943 | 84.3978 | no |
+| a | 42131 | Hissar | airport/ICAO | 156.53 | 3-hourly | 83.1889 | 83.0178 | 83.1318 | 82.8809 | no |
+| c | 43003 | Bombay / Santacruz | airport/ICAO | 125.31 | hourly | 99.9088 | 99.8974 | 99.9088 | 99.8974 | no |
+| c | 43014 | Aurangabad Chikalthan Aerodrome | airport/ICAO | 219.15 | mixed | 97.4339 | 97.3198 | 97.4224 | 97.2970 | no |
+| c | 43063 | Poona | WMO | 1.82 | 3-hourly | 85.6182 | 85.5839 | 85.5497 | 85.3901 | no |
+| c | 43110 | Ratnagiri | WMO | 179.75 | 3-hourly | 84.3978 | 84.3864 | 84.3864 | 84.3636 | no |
+| c | 42921 | Nasik | WMO | 164.77 | 3-hourly | 84.0214 | 83.9644 | 83.9758 | 83.8846 | no |
+| c | 43117 | Sholapur | airport/ICAO | 235.57 | 3-hourly | 82.5160 | 82.5502 | 82.5046 | 82.4703 | no |
+
+The final dataset has **105,216 station-times** (12 × 8,768). The 50% complete-triplet threshold is met by every selected station.
+
+## Neighbour list for final stations
+
+Eligibility is **≤200 km and ≤500 m elevation difference**, within the same cluster and final station set. An empty list is valid: the spatial tier must use its sparse-neighbour fallback and lower confidence rather than crash.
+
+| Station | Cluster | Eligible final neighbours |
+|---|---|---|
+| 42181 New Delhi / Palam | a | 42182 Safdarjung; 42131 Hissar |
+| 42182 New Delhi / Safdarjung | a | 42181 Palam; 42131 Hissar |
+| 42348 Jaipur / Sanganer | a | 42170 Churu |
+| 42170 Churu | a | 42348 Jaipur; 42131 Hissar |
+| 42103 Ambala | a | 42131 Hissar |
+| 42131 Hissar | a | 42181 Palam; 42182 Safdarjung; 42170 Churu; 42103 Ambala |
+| 43003 Bombay / Santacruz | c | none under 200 km/500 m in final set; sparse fallback |
+| 43014 Aurangabad Chikalthan Aerodrome | c | 42921 Nasik |
+| 43063 Poona | c | 43110 Ratnagiri; 42921 Nasik |
+| 43110 Ratnagiri | c | 43063 Poona |
+| 42921 Nasik | c | 43014 Aurangabad; 43063 Poona |
+| 43117 Sholapur | c | none under 200 km/500 m in final set; sparse fallback |
+
+The two isolated Maharashtra stations remain because they pass the requested 50% coverage rule and are among the six passing Pune-area candidates. Their T3 confidence will be reduced when the engine runs.
+
+## Protected windows — final list, cluster-specific
+
+Fault injection must be blocked only for stations in the corresponding cluster:
+
+| Window | Cluster | UTC interval | Final stations covered | Complete-triplet coverage |
+|---|---|---|---:|---|
+| `heatwave_a` | a | 2024-05-16 18:30:00Z through 2024-06-19 18:29:59Z | 6/6 | recorded in `protected_window_coverage.csv` |
+| `biparjoy_a` | a | 2023-06-16 18:00:00Z inclusive through 2023-06-21 00:00:00Z exclusive | 6/6 | recorded in `protected_window_coverage.csv` |
+| `monsoon_c` | c | 2024-07-23 00:00:00Z inclusive through 2024-07-30 00:00:00Z exclusive | 6/6 | recorded in `protected_window_coverage.csv` |
+
+Sources:
+
+1. [IMD, 30 May 2024](https://internal.imd.gov.in/press_release/20240603_pr_3037.pdf) and [PIB, 30 May 2024](https://www.pib.gov.in/PressReleasePage.aspx?PRID=2022186) — northwest heatwave timing and peak Rajasthan conditions.
+2. [IMD, 4 June 2024](https://internal.imd.gov.in/press_release/20240604_pr_3038.pdf) and [IMD, 6 June 2024](https://internal.imd.gov.in/press_release/20240606_pr_3041.pdf) — residual and renewed northwest heatwave conditions.
+3. [IMD, 17 June 2023](https://internal.imd.gov.in/press_release/20230617_pr_2387.pdf), [18 June 2023](https://internal.imd.gov.in/press_release/20230618_pr_2389.pdf), and [27 June 2023](https://internal.imd.gov.in/press_release/20230627_pr_2398.pdf) — Biparjoy remnants and Rajasthan rainfall.
+4. [IMD, 23 July 2024](https://internal.imd.gov.in/press_release/20240723_pr_3109.pdf) and [25 July 2024](https://internal.imd.gov.in/press_release/20240725_pr_3112.pdf) — peak Konkan/Madhya Maharashtra rainfall.
+
+Native gaps are not F7 faults. Future labels will keep source-availability gaps separate from rows deliberately deleted by the injector as F7 dropouts.
+
+## Outputs
+
+- `stations.csv` — final metadata, synoptic coverage, and `low_coverage` flag.
+- `data/clean/observations_clean.parquet` — observation-only, 3-hourly clean data.
+- `data/clean/missingness_by_station.csv` — per-station quality metrics.
+- `data/clean/candidate_synoptic_coverage.csv` — ranked scan of all 61 candidates.
+- `data/clean/protected_window_coverage.csv` — final cluster-specific window audit.
+- `data/clean/data_summary.json` — machine-readable configuration and totals.
+- `reports/data_step_report.md` — concise final report.
+
+Reproduce the final station retrieval with:
+
+```bash
+python3 src/prepare_data.py
+```

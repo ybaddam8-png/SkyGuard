@@ -1,0 +1,12 @@
+{
+  "candidate_count": 61,
+  "by_cluster": {
+    "a": 32,
+    "c": 29
+  },
+  "source": "Meteostat Python 1.7.6 model=False",
+  "interpolation_applied": false,
+  "synoptic_grid_start": "2023-01-01T00:00:00+00:00",
+  "synoptic_grid_end": "2025-12-31T23:00:00+00:00",
+  "synoptic_hours": "00,03,...,21 UTC"
+}
