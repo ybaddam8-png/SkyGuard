@@ -207,7 +207,10 @@ fig,ax=plt.subplots(figsize=(8,7)); im=ax.imshow(cm_total, cmap='Blues'); ax.set
 sample=inj[inj.injected_faults.str.len()>0].head(1).station_id.iloc[0]; eg=inj[inj.station_id==sample].head(300); fig,ax=plt.subplots(3,1,figsize=(12,7),sharex=True); 
 for a,v in zip(ax,VARS): a.plot(eg.time_utc,eg[v],lw=.8); a.set_ylabel(v)
 fig.suptitle(f'Example injected station {sample}'); fig.tight_layout(); fig.savefig(OUT/'figures/example_fault_spans.png',dpi=160); plt.close(fig)
-fig,ax=plt.subplots(figsize=(12,4)); pwin=inj[protected]; ax.plot(pwin.time_utc,pwin.temp_c,'.',ms=1); ax.set_title('Protected real-event window sample (no injection)'); fig.tight_layout(); fig.savefig(OUT/'figures/heatwave_no_injection.png',dpi=160); plt.close(fig)
+fig,ax=plt.subplots(figsize=(12,4)); pwin=inj[protected]; ax.plot(pwin.time_utc,pwin.temp_c,'.',ms=1,color='#1677b8',label='temp_c')
+alert_mask=protected&(all_pred>=.5); n_alerts=int(alert_mask.sum())
+if n_alerts: ax.plot(inj.loc[alert_mask,'time_utc'],inj.loc[alert_mask,'temp_c'],'x',ms=7,color='#e15759',label='alert (P(fault)≥0.5)')
+ax.legend(loc='upper right',fontsize=8); ax.set_title(f'Protected real-event window sample (no injection) — {n_alerts} alerts overlaid'); fig.tight_layout(); fig.savefig(OUT/'figures/heatwave_no_injection.png',dpi=160); plt.close(fig)
 # benchmark report
 lines=['# SkyGuard AI benchmark report','', '## Run configuration','', '- 3-hourly cadence; 1 step = 3 h; lags 1/2/4/8; rolling windows 1/8.', '- Grouped 5-fold cross-validation by station; mean and standard deviation reported.', '- LightGBM models capped at 200 trees; LSTM and edge skipped under free-plan scope.', '- Faults injected outside cluster-specific protected windows; native source gaps are not F7 labels.', '', '## Data and injector','', f"- Injected rows: {len(inj):,}; labelled fault observations: {len(labels):,}; stations: {inj.station_id.nunique()}; protected rows: {protected.sum():,}.", f"- Label counts: {metrics['label_counts']}.", f"- F2 duration: 4–24 steps (12–72 h); F5: 4–80 steps (12 h–10 days); F7: 1–8 steps.", '', '## Metrics (fold mean ± std)','', '| Metric | Mean | Std | |\n|---|---:|---:|']
 for n in ['precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']:
