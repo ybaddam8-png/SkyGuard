@@ -196,7 +196,7 @@ metrics['false_alarms_per_1000_by_window']={}
 for wname in ['heatwave_a','biparjoy_a','monsoon_c']:
  wm=(window_name==wname); n_obs=int(wm.sum())
  metrics['false_alarms_per_1000_by_window'][wname]={'n_obs':n_obs,'per_1000':float(1000*np.sum(all_pred[wm]>=.5)/n_obs) if n_obs else None}
-with open(OUT/'metrics.json','w') as f: json.dump(metrics,f,indent=2,default=lambda x: x.item() if isinstance(x,np.generic) else str(x))
+with open(OUT/'metrics.json','w') as f: json.dump(metrics,f,indent=2,allow_nan=False,default=lambda x: x.item() if isinstance(x,np.generic) else str(x))
 # figures
 plt.style.use('seaborn-v0_8-whitegrid')
 # per-class F1 chart with baselines approximated from T0/IF overall
@@ -280,11 +280,13 @@ def impute_value(sid,t,v):
  if q50 is not None:
   return {'value':round(q50,3),'low':round(q10,3),'high':round(q90,3),'method':'t1_fallback'}
  return {'value':round(v2,3),'low':round(v2-1.2816*math.sqrt(var2),3),'high':round(v2+1.2816*math.sqrt(var2),3),'method':'t2_fallback'}
+def _safe_round(x,nd=3):
+ x=float(x); return None if (math.isnan(x) or math.isinf(x)) else round(x,nd)
 def tier_scores_for(i):
  return {'t0':['hard'] if X.at[i,'t0_hard']>0 else (['soft'] if X.at[i,'t0_soft']>0 else []),
-         **{f'z1_{v}':round(float(X.at[i,f'z1_{v}']),3) for v in VARS},
-         **{f'z2_{v}':round(float(X.at[i,f'z2_{v}']),3) for v in VARS},
-         **{f'z3_{v}':round(float(X.at[i,f'z3_{v}']),3) for v in VARS}}
+         **{f'z1_{v}':_safe_round(X.at[i,f'z1_{v}']) for v in VARS},
+         **{f'z2_{v}':_safe_round(X.at[i,f'z2_{v}']) for v in VARS},
+         **{f'z3_{v}':_safe_round(X.at[i,f'z3_{v}']) for v in VARS}}
 
 sample_out=Xraw[['station_id','time_utc']+VARS].copy(); sample_out['p_fault']=all_pred; sample_out['root_cause']=all_cls; sample_out['severity']=pd.cut(sample_out.p_fault,[-1,.3,.5,.75,.9,2],labels=['low','low','medium','high','critical'],ordered=False).astype(str); sample_out['model_version']='fusion-3h-0.1'
 stream=sample_out[sample_out.time_utc>=sample_out.time_utc.max()-pd.Timedelta(days=14)].copy()
@@ -328,5 +330,5 @@ for i in alert_idx:
  r=sample_out.loc[i]; v=_primary_var(r.root_cause,i); imputed=impute_value(r.station_id,r.time_utc,v) if v else None
  explanation,top_factors=expl_alert[i]
  alerts.append({'station_id':r.station_id,'time_utc':r.time_utc.isoformat(),'variable':v or 'all','observed':{vv:None if pd.isna(r[vv]) else float(r[vv]) for vv in VARS},'p_fault':float(r.p_fault),'severity':r.severity,'root_cause':r.root_cause,'explanation':explanation,'top_factors':top_factors,'imputed':imputed,'tier_scores':tier_scores_for(i),'model_version':'fusion-3h-0.1'})
-json.dump(alerts,open(OUT/'alerts_examples.json','w'),indent=2)
+json.dump(alerts,open(OUT/'alerts_examples.json','w'),indent=2,allow_nan=False)
 print('DONE',len(labels),'labels',metrics['metrics']['f1'])

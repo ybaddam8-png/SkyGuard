@@ -48,7 +48,7 @@ Macro-F1 across F1–F9 (OOF): **0.4060**.
 
 ## Scoring latency
 
-- p50: 0.995 ms; p95: 1.475 ms (timed row-by-row on fold 0's test set, n=500).
+- p50: 0.852 ms; p95: 1.234 ms (timed row-by-row on fold 0's test set, n=500).
 
 ## False alarms in protected windows (P(fault) >= 0.5)
 

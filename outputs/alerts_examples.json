@@ -326,9 +326,9 @@
     },
     "tier_scores": {
       "t0": [],
-      "z1_temp_c": NaN,
-      "z1_mslp_hpa": NaN,
-      "z1_rh_pct": NaN,
+      "z1_temp_c": null,
+      "z1_mslp_hpa": null,
+      "z1_rh_pct": null,
       "z2_temp_c": 0.0,
       "z2_mslp_hpa": 0.0,
       "z2_rh_pct": 0.0,
@@ -425,7 +425,7 @@
         "soft"
       ],
       "z1_temp_c": -0.136,
-      "z1_mslp_hpa": NaN,
+      "z1_mslp_hpa": null,
       "z1_rh_pct": 0.003,
       "z2_temp_c": 4.279,
       "z2_mslp_hpa": -0.968,
