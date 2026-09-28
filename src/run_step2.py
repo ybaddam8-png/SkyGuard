@@ -10,6 +10,7 @@ from sklearn.isotonic import IsotonicRegression
 from sklearn.model_selection import GroupKFold
 from lightgbm import LGBMClassifier, LGBMRegressor
 import matplotlib.pyplot as plt
+import shap
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from skyguard_inject import inject_faults, VARS, CLASSES
@@ -136,7 +137,7 @@ zcols=[c for c in X if c.startswith(('z1_','z2_','z3_'))]; t0cols=[c for c in X 
 X['t0_hard']=X[[c for c in X if c.endswith('_range_flag')]].max(axis=1); X['t0_soft']=X[[c for c in X if c.endswith(('_step_flag','_zero4'))]].max(axis=1); X['z_max']=X[zcols].abs().max(axis=1)
 # avoid nonnumeric raw station id/time; all X numeric
 # ---------- grouped 5-fold CV ----------
-folds=list(GroupKFold(n_splits=5).split(X,y,groups=groups)); fold_metrics=[]; all_pred=np.zeros(len(y)); all_cls=np.full(len(y),'weather',object); cm_total=np.zeros((10,10),int); fold_feature_importance=[]
+folds=list(GroupKFold(n_splits=5).split(X,y,groups=groups)); fold_metrics=[]; all_pred=np.zeros(len(y)); all_cls=np.full(len(y),'weather',object); cm_total=np.zeros((10,10),int); fold_feature_importance=[]; fold_of_row=np.zeros(len(y),int); fold_models=[]
 # baseline T0 and isolation forest per fold; ablations train fusion with selected evidence blocks
 blocks={'no_T1':[c for c in X.columns if c.startswith('z1_') or c.startswith('t1_q')],'no_T2':[c for c in X.columns if c.startswith('z2_')],'no_T3':[c for c in X.columns if c.startswith(('z3_','neighbour_'))]}
 base_cols=[c for c in X.columns if c not in ['station_code']]
@@ -175,7 +176,7 @@ for fi,(tr,te) in enumerate(folds):
   am.fit(X.iloc[tr][cols],y[tr]); ap=am.predict(X.iloc[te][cols]); fold_metrics[-1][name+'_f1']=float(f1_score(y[te],ap,zero_division=0))
  # confusion fault classes for test rows; weather as tenth
  labs=CLASSES+['weather']; cm_total += confusion_matrix(row_classes[te],all_cls[te],labels=labs)
- fold_feature_importance.append(pd.Series(model.feature_importances_,index=base_cols))
+ fold_feature_importance.append(pd.Series(model.feature_importances_,index=base_cols)); fold_of_row[te]=fi; fold_models.append(model)
  print('fold',fi+1,'f1',round(fm['f1'],4),flush=True)
 # p50/p95 per-observation scoring latency: time predict_proba row by row on fold 0's test set
 lat_rows=fold0_te[:500]; lat_times=[]
@@ -219,8 +220,110 @@ for wname,wr in metrics['false_alarms_per_1000_by_window'].items():
 lines += ['', '## Neighbour policy', '', 'Primary links use 200 km / 500 m. Stations with fewer than two primary neighbours use sparse links widened to 300 km / 800 m and a 0.7 T3 confidence multiplier. A station with zero links makes T3 abstain and fusion treats T3 as missing.', '', '## Honest limitations', '', 'The benchmark is an injected-data estimate over a small 12-station network with substantial native gaps. Results below specification targets, if any, are reported without tuning them away.', '', '## Figures', '', '- `outputs/figures/per_class_f1.png`', '- `outputs/figures/ablation.png`', '- `outputs/figures/confusion_matrix.png`', '- `outputs/figures/example_fault_spans.png`', '- `outputs/figures/heatwave_no_injection.png`']
 (OUT/'benchmark_report.md').write_text('\n'.join(lines)+'\n')
 # scored stream sample / alerts examples
-sample_out=Xraw[['station_id','time_utc']+VARS].copy(); sample_out['p_fault']=all_pred; sample_out['root_cause']=all_cls; sample_out['severity']=pd.cut(sample_out.p_fault,[-1,.3,.5,.75,.9,2],labels=['low','low','medium','high','critical'],ordered=False).astype(str); sample_out['model_version']='fusion-3h-0.1'; sample_out[sample_out.time_utc>=sample_out.time_utc.max()-pd.Timedelta(days=14)].to_parquet(OUT/'scored_stream.parquet',index=False); sample_out.head(100).to_json(OUT/'scored_stream_sample.json',orient='records',date_format='iso')
+# ---------- explanations (SHAP) and imputation (T2/T3 blend, T1 fallback) ----------
+inj_lookup={v:{(str(s),t): val for s,t,val in zip(Xraw.station_id,Xraw.time_utc,Xraw[v])} for v in VARS}
+row_idx_by_key={(str(s),t): i for i,(s,t) in enumerate(zip(Xraw.station_id,Xraw.time_utc))}
+FEATURE_TEMPLATES=[
+ (lambda f: f=='t0_hard', lambda f,val,v: 'a hard physical-range or persistence rule fired'),
+ (lambda f: f=='t0_soft', lambda f,val,v: 'a soft step-limit or frozen-value rule fired'),
+ (lambda f: f.startswith('z1_'), lambda f,val,v: f"{f[3:]} deviates {val:.1f} sigma from this station's own recent history"),
+ (lambda f: f.startswith('z2_'), lambda f,val,v: f"{f[3:]} is inconsistent with the station's other variables (z={val:.1f})"),
+ (lambda f: f.startswith('z3_'), lambda f,val,v: f"{f[3:]} disagrees with neighbouring stations (z={val:.1f})"),
+ (lambda f: f.startswith('neighbour_agreement_'), lambda f,val,v: f"neighbours mostly disagree on {f[len('neighbour_agreement_'):]}"),
+ (lambda f: f.endswith('_zero4'), lambda f,val,v: f"{f[:-6]} has been unchanged for 4+ steps"),
+ (lambda f: f.endswith('_missing'), lambda f,val,v: f"{f[:-8]} is missing"),
+]
+def describe_feature(f,val):
+ for cond,tmpl in FEATURE_TEMPLATES:
+  if cond(f): return tmpl(f,val,None)
+ return f"{f}={val:.2f} contributed"
+explainer_cache={}
+def get_explainer(fi):
+ if fi not in explainer_cache: explainer_cache[fi]=shap.TreeExplainer(fold_models[fi])
+ return explainer_cache[fi]
+def explain_rows(idxs):
+ out={}
+ idxs=np.asarray(idxs)
+ for fi in np.unique(fold_of_row[idxs]):
+  sub=idxs[fold_of_row[idxs]==fi]; ex=get_explainer(int(fi)); rows=X.iloc[sub][base_cols]
+  sv=ex.shap_values(rows)
+  if isinstance(sv,list): sv=sv[1] if len(sv)>1 else sv[0]
+  sv=np.asarray(sv)
+  for k,i in enumerate(sub):
+   order=np.argsort(sv[k])[::-1]; top=[]
+   for oi in order:
+    if sv[k,oi]<=0 or len(top)>=3: break
+    f=base_cols[oi]; top.append({'feature':f,'shap':float(sv[k,oi])})
+   phrases=[describe_feature(t['feature'],float(rows.iloc[k][t['feature']])) for t in top]
+   explanation=('; '.join(phrases)+f'. Root cause: {all_cls[i]}.') if phrases else f'Fusion model flagged this row (root cause: {all_cls[i]}); no single dominant positive factor.'
+   out[i]=(explanation,top)
+ return out
+def impute_value(sid,t,v):
+ sid=str(sid); month=int(t.month); hour=int(t.hour)
+ mu,sd=clim_lookup.get((sid,v,month,hour),(0.0,1.0)); v2,var2=mu,max(sd**2,1e-6)
+ vals=[]; ws=[]
+ for dist,elev,oid in neigh.get(sid,[]):
+  ov=inj_lookup[v].get((str(oid),t))
+  if ov is not None and pd.notna(ov):
+   om,osd=clim_lookup.get((str(oid),v,month,hour),(0.0,1.0)); vals.append(ov-om); ws.append(np.exp(-dist/75)*np.exp(-elev/300))
+ idx=row_idx_by_key.get((sid,t))
+ q10=q50=q90=None
+ if idx is not None:
+  q10=float(X.at[idx,f't1_q10_{v}']); q50=float(X.at[idx,f't1_q50_{v}']); q90=float(X.at[idx,f't1_q90_{v}'])
+ if vals:
+  med=float(np.average(vals,weights=ws)); mad=float(np.median(np.abs(np.array(vals)-med))); v3=mu+med; var3=max((1.4826*mad)**2,1e-6)
+  wsum=1/var2+1/var3; value=(v2/var2+v3/var3)/wsum; sd_b=math.sqrt(1/wsum)
+  return {'value':round(value,3),'low':round(value-1.2816*sd_b,3),'high':round(value+1.2816*sd_b,3),'method':'blend_t2_t3'}
+ if q50 is not None:
+  return {'value':round(q50,3),'low':round(q10,3),'high':round(q90,3),'method':'t1_fallback'}
+ return {'value':round(v2,3),'low':round(v2-1.2816*math.sqrt(var2),3),'high':round(v2+1.2816*math.sqrt(var2),3),'method':'t2_fallback'}
+def tier_scores_for(i):
+ return {'t0':['hard'] if X.at[i,'t0_hard']>0 else (['soft'] if X.at[i,'t0_soft']>0 else []),
+         **{f'z1_{v}':round(float(X.at[i,f'z1_{v}']),3) for v in VARS},
+         **{f'z2_{v}':round(float(X.at[i,f'z2_{v}']),3) for v in VARS},
+         **{f'z3_{v}':round(float(X.at[i,f'z3_{v}']),3) for v in VARS}}
+
+sample_out=Xraw[['station_id','time_utc']+VARS].copy(); sample_out['p_fault']=all_pred; sample_out['root_cause']=all_cls; sample_out['severity']=pd.cut(sample_out.p_fault,[-1,.3,.5,.75,.9,2],labels=['low','low','medium','high','critical'],ordered=False).astype(str); sample_out['model_version']='fusion-3h-0.1'
+stream=sample_out[sample_out.time_utc>=sample_out.time_utc.max()-pd.Timedelta(days=14)].copy()
+stream_idx=stream.index.to_numpy()
+expl_by_idx=explain_rows(stream_idx)
+stream['explanation']=[expl_by_idx[i][0] for i in stream_idx]
+stream['top_factors']=[expl_by_idx[i][1] for i in stream_idx]
+stream['tier_scores']=[tier_scores_for(i) for i in stream_idx]
+def _primary_var(rc,i):
+ if rc=='weather': return None
+ best_v,best_z=VARS[0],-1.0
+ for v in VARS:
+  z=max(abs(float(X.at[i,f'z1_{v}'])),abs(float(X.at[i,f'z2_{v}'])),abs(float(X.at[i,f'z3_{v}'])))
+  if z>best_z: best_z=z; best_v=v
+ return best_v
+def _imputed_or_none(i):
+ v=_primary_var(stream.at[i,'root_cause'],i)
+ return impute_value(stream.at[i,'station_id'],stream.at[i,'time_utc'],v) if v else None
+stream['imputed']=[_imputed_or_none(i) for i in stream_idx]
+stream.to_parquet(OUT/'scored_stream.parquet',index=False)
+stream.head(100).to_json(OUT/'scored_stream_sample.json',orient='records',date_format='iso')
+
+# alerts: pick diverse examples from the FULL dataset (not just the 14-day stream
+# tail, which is too short to contain most fault classes), one per available
+# predicted class first, then fill remaining slots by highest p_fault.
+def pick_diverse_alerts(pool,n=10):
+ selected=[]; seen=set()
+ for c in CLASSES:
+  if len(selected)>=n: break
+  cand=pool[pool.root_cause==c].sort_values('p_fault',ascending=False).head(1)
+  if len(cand) and cand.index[0] not in seen: selected.append(cand.index[0]); seen.add(cand.index[0])
+ for idx in pool.sort_values('p_fault',ascending=False).index:
+  if len(selected)>=n: break
+  if idx not in seen: selected.append(idx); seen.add(idx)
+ return pool.loc[selected]
+alert_rows=pick_diverse_alerts(sample_out,n=10)
+alert_idx=alert_rows.index.to_numpy()
+expl_alert=explain_rows(alert_idx)
 alerts=[]
-for _,r in sample_out.sort_values('p_fault',ascending=False).head(10).iterrows(): alerts.append({'station_id':r.station_id,'time_utc':r.time_utc.isoformat(),'variable':'all','observed':{v:None if pd.isna(r[v]) else float(r[v]) for v in VARS},'p_fault':float(r.p_fault),'severity':r.severity,'root_cause':r.root_cause,'explanation':f"Tier fusion assigned {r.p_fault:.2f} fault probability; inspect {r.root_cause} evidence.",'top_factors':[],'imputed':None,'tier_scores':{},'model_version':'fusion-3h-0.1'})
+for i in alert_idx:
+ r=sample_out.loc[i]; v=_primary_var(r.root_cause,i); imputed=impute_value(r.station_id,r.time_utc,v) if v else None
+ explanation,top_factors=expl_alert[i]
+ alerts.append({'station_id':r.station_id,'time_utc':r.time_utc.isoformat(),'variable':v or 'all','observed':{vv:None if pd.isna(r[vv]) else float(r[vv]) for vv in VARS},'p_fault':float(r.p_fault),'severity':r.severity,'root_cause':r.root_cause,'explanation':explanation,'top_factors':top_factors,'imputed':imputed,'tier_scores':tier_scores_for(i),'model_version':'fusion-3h-0.1'})
 json.dump(alerts,open(OUT/'alerts_examples.json','w'),indent=2)
 print('DONE',len(labels),'labels',metrics['metrics']['f1'])
