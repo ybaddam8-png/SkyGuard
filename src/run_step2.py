@@ -148,10 +148,12 @@ for fi,(tr,te) in enumerate(folds):
  mc.fit(X.iloc[tr][base_cols],row_classes[tr]); cp=mc.predict(X.iloc[te][base_cols]); all_cls[te]=cp
  # baselines
  t0=(X.iloc[te]['t0_hard'].to_numpy()>0)|(X.iloc[te]['t0_soft'].to_numpy()>0)|(X.iloc[te]['z_max'].to_numpy()>6)
- iso=IsolationForest(n_estimators=100,random_state=SEED+fi,contamination=0.03,n_jobs=-1).fit(X.iloc[tr][[c for c in base_cols if c not in ['t0_hard','t0_soft']].copy()])
+ train_prevalence=float(np.clip(y[tr].mean(),1e-3,0.5))
+ iso=IsolationForest(n_estimators=100,random_state=SEED+fi,contamination=train_prevalence,n_jobs=-1).fit(X.iloc[tr][[c for c in base_cols if c not in ['t0_hard','t0_soft']].copy()])
  ip=iso.predict(X.iloc[te][[c for c in base_cols if c not in ['t0_hard','t0_soft']]])==-1
+ trivial=np.ones(len(te),bool)
  def met(a,b): return {'precision':float(precision_score(a,b,zero_division=0)),'recall':float(recall_score(a,b,zero_division=0)),'f1':float(f1_score(a,b,zero_division=0))}
- fm=met(y[te],pred); fm.update({'fold':fi+1,'n_test':int(len(te)),'t0_f1':met(y[te],t0)['f1'],'iforest_f1':met(y[te],ip)['f1']}); fold_metrics.append(fm)
+ fm=met(y[te],pred); fm.update({'fold':fi+1,'n_test':int(len(te)),'t0_f1':met(y[te],t0)['f1'],'iforest_f1':met(y[te],ip)['f1'],'trivial_f1':met(y[te],trivial)['f1']}); fold_metrics.append(fm)
  # ablation quick models
  for name,drop in blocks.items():
   if name=='all': continue
@@ -166,7 +168,7 @@ for fi,(tr,te) in enumerate(folds):
  fold_feature_importance.append(pd.Series(model.feature_importances_,index=base_cols))
  print('fold',fi+1,'f1',round(fm['f1'],4),flush=True)
 # per-class metrics across folds using out-of-fold predictions (reported as one OOF estimate + fold spread for binary)
-metric_names=['precision','recall','f1','t0_f1','iforest_f1','no_T1_f1','no_T2_f1','no_T3_f1']
+metric_names=['precision','recall','f1','t0_f1','iforest_f1','trivial_f1','no_T1_f1','no_T2_f1','no_T3_f1']
 metrics={'config':CFG,'dataset':{'rows':int(len(inj)),'stations':int(inj.station_id.nunique()),'labels':int(len(labels)),'protected_rows':int(protected.sum())},'cv':{'folds':5,'grouped_by':'station','fold_station_counts':[int(len(np.unique(groups[te]))) for _,te in folds]},'metrics':{}}
 for n in metric_names:
  vals=[r[n] for r in fold_metrics if n in r]; metrics['metrics'][n]={'mean':float(np.mean(vals)),'std':float(np.std(vals,ddof=1) if len(vals)>1 else 0),'folds':vals}
@@ -189,7 +191,7 @@ fig.suptitle(f'Example injected station {sample}'); fig.tight_layout(); fig.save
 fig,ax=plt.subplots(figsize=(12,4)); pwin=inj[protected]; ax.plot(pwin.time_utc,pwin.temp_c,'.',ms=1); ax.set_title('Protected real-event window sample (no injection)'); fig.tight_layout(); fig.savefig(OUT/'figures/heatwave_no_injection.png',dpi=160); plt.close(fig)
 # benchmark report
 lines=['# SkyGuard AI benchmark report','', '## Run configuration','', '- 3-hourly cadence; 1 step = 3 h; lags 1/2/4/8; rolling windows 1/8.', '- Grouped 5-fold cross-validation by station; mean and standard deviation reported.', '- LightGBM models capped at 200 trees; LSTM and edge skipped under free-plan scope.', '- Faults injected outside cluster-specific protected windows; native source gaps are not F7 labels.', '', '## Data and injector','', f"- Injected rows: {len(inj):,}; labelled fault observations: {len(labels):,}; stations: {inj.station_id.nunique()}; protected rows: {protected.sum():,}.", f"- Label counts: {metrics['label_counts']}.", f"- F2 duration: 4–24 steps (12–72 h); F5: 4–80 steps (12 h–10 days); F7: 1–8 steps.", '', '## Metrics (fold mean ± std)','', '| Metric | Mean | Std | |\n|---|---:|---:|']
-for n in ['precision','recall','f1','t0_f1','iforest_f1','no_T1_f1','no_T2_f1','no_T3_f1']:
+for n in ['precision','recall','f1','t0_f1','iforest_f1','trivial_f1','no_T1_f1','no_T2_f1','no_T3_f1']:
  r=metrics['metrics'][n]; lines.append(f"| {n} | {r['mean']:.4f} | {r['std']:.4f} |")
 lines += ['', '## Per-class root-cause F1 (OOF)', '', '| Class | Precision | Recall | F1 |','|---|---:|---:|---:|']
 for c in CLASSES: r=metrics['per_class'][c]; lines.append(f"| {c} | {r['precision']:.4f} | {r['recall']:.4f} | {r['f1']:.4f} |")
