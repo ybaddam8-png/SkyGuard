@@ -118,7 +118,7 @@ for _,r in Xraw.iterrows():
 y=np.array(y); row_classes=np.array(row_classes); groups=Xraw.station_id.values; feature_cols=list(X.columns)
 # Train T1 quantile models on clean features (global; models capped 200 trees). Predictions/residuals are features.
 _,Xclean=make_features(clean); Xclean=Xclean[feature_cols]
-models={};
+models={}; healthy_t1={}
 for v in VARS:
  target=clean[v].fillna(clean[v].median())
  # use compact feature set to keep training robust
@@ -129,9 +129,25 @@ for v in VARS:
   m.fit(Xclean[cols],target); models[v][q]=(m,cols)
   X[f't1_q{int(q*100)}_{v}']=m.predict(X[cols])
  X['z1_'+v]=(Xraw[v]-X[f't1_q50_{v}'])/((X[f't1_q90_{v}']-X[f't1_q10_{v}'])/2.563+1e-3)
+ healthy_t1[v]=(clean[v]-models[v][.5][0].predict(Xclean[models[v][.5][1]])).groupby(clean.station_id).std()
 # T2 simple residual proxy from cross-variable climatological expected values
 for v in VARS:
  other=[q for q in VARS if q!=v]; X['z2_'+v]=(X[v+'_clim_z']-X[other[0]+'_clim_z'].fillna(0)*0.15-X[other[1]+'_clim_z'].fillna(0)*0.15)
+# ---------- slow-signal evidence (spec section 8): causal per-station features, past and current steps only ----------
+st_key=Xraw.station_id.astype(str).values; st_pos={sid:np.flatnonzero(st_key==sid) for sid in np.unique(st_key)}
+def _by_station(ser,fn): return ser.groupby(st_key,sort=False).transform(fn)
+for v in VARS:
+ other=[q for q in VARS if q!=v]
+ healthy_t2=(Xclean[v+'_clim_z']-Xclean[other[0]+'_clim_z']*0.15-Xclean[other[1]+'_clim_z']*0.15).groupby(clean.station_id.values).std()
+ for tier,resid,healthy in [('t1',Xraw[v]-X[f't1_q50_{v}'],healthy_t1[v]),('t2',X['z2_'+v],healthy_t2)]:
+  h=pd.Series(st_key).map(healthy).fillna(healthy.median()).clip(lower=1e-3).to_numpy()
+  X[f'slow_{tier}_{v}_varratio']=(_by_station(resid,lambda z:z.rolling(8,min_periods=4).std())/h).fillna(1.0)
+ for w in (8,24): X[f'slow_t3_{v}_rmean{w}']=_by_station(X['z3_'+v],lambda z:z.rolling(w,min_periods=1).mean())
+ zc=X['z3_'+v].clip(-5,5).to_numpy(); cpos=np.zeros(len(zc)); cneg=np.zeros(len(zc))
+ for idx in st_pos.values():
+  sp=sn=0.0
+  for i in idx: sp=max(0.0,sp+zc[i]-.5); sn=min(0.0,sn+zc[i]+.5); cpos[i]=sp; cneg[i]=sn
+ X[f'slow_t3_{v}_cusum_pos']=cpos; X[f'slow_t3_{v}_cusum_neg']=cneg
 # score columns
 zcols=[c for c in X if c.startswith(('z1_','z2_','z3_'))]; t0cols=[c for c in X if c.endswith(('_range_flag','_step_flag','_zero4'))]
 X['t0_hard']=X[[c for c in X if c.endswith('_range_flag')]].max(axis=1); X['t0_soft']=X[[c for c in X if c.endswith(('_step_flag','_zero4'))]].max(axis=1); X['z_max']=X[zcols].abs().max(axis=1)
@@ -139,7 +155,7 @@ X['t0_hard']=X[[c for c in X if c.endswith('_range_flag')]].max(axis=1); X['t0_s
 # ---------- grouped 5-fold CV ----------
 folds=list(GroupKFold(n_splits=5).split(X,y,groups=groups)); fold_metrics=[]; all_pred=np.zeros(len(y)); all_cls=np.full(len(y),'weather',object); cm_total=np.zeros((10,10),int); fold_feature_importance=[]; fold_of_row=np.zeros(len(y),int); fold_models=[]
 # baseline T0 and isolation forest per fold; ablations train fusion with selected evidence blocks
-blocks={'no_T1':[c for c in X.columns if c.startswith('z1_') or c.startswith('t1_q')],'no_T2':[c for c in X.columns if c.startswith('z2_')],'no_T3':[c for c in X.columns if c.startswith(('z3_','neighbour_'))]}
+blocks={'no_T1':[c for c in X.columns if c.startswith(('z1_','t1_q','slow_t1_'))],'no_T2':[c for c in X.columns if c.startswith(('z2_','slow_t2_'))],'no_T3':[c for c in X.columns if c.startswith(('z3_','neighbour_','slow_t3_'))]}
 base_cols=[c for c in X.columns if c not in ['station_code']]
 def ece(probs,truth,n_bins=10):
  probs=np.asarray(probs,dtype=float); truth=np.asarray(truth,dtype=float); edges=np.linspace(0,1,n_bins+1); total=len(probs); e=0.0
@@ -148,6 +164,17 @@ def ece(probs,truth,n_bins=10):
   if m.sum()==0: continue
   e+=(m.sum()/total)*abs(probs[m].mean()-truth[m].mean())
  return float(e)
+abl_flag={n:np.zeros(len(y),bool) for n in blocks}; abl_cls={n:np.full(len(y),'weather',object) for n in blocks}
+# event table (one row per injected event) and per-fold test/train event counts, printed before any training
+time_ns=Xraw.time_utc.map(lambda t:t.value).to_numpy(); events=[]
+for (sid,var,cls,a,b),_ in labels.groupby(['station_id','variable','class','start','end']):
+ pos=st_pos[str(sid)]; rows=pos[(time_ns[pos]>=a.value)&(time_ns[pos]<=b.value)]; events.append({'class':cls,'sid':str(sid),'start':a,'rows':rows})
+fold_of_sid={s:fi for fi,(_,te) in enumerate(folds) for s in np.unique(groups[te])}
+ev_counts=pd.DataFrame([{'fold':fold_of_sid[e['sid']]+1,'class':e['class']} for e in events]).value_counts().unstack('class').reindex(columns=CLASSES).fillna(0).astype(int).reindex(range(1,6),fill_value=0)
+print('per-fold TEST event counts:\n',ev_counts.to_string(),flush=True)
+print('min/max test events per class:',{c:(int(ev_counts[c].min()),int(ev_counts[c].max())) for c in CLASSES},flush=True)
+train_min={c:int((ev_counts[c].sum()-ev_counts[c]).min()) for c in CLASSES}; print('min TRAIN events per class:',train_min,flush=True)
+if (ev_counts.min()==0).any() or min(train_min.values())<5: raise RuntimeError('fold assignment leaves a class with zero test or <5 train events; reassign stations by event counts')
 fold0_model=None; fold0_te=None
 for fi,(tr,te) in enumerate(folds):
  # use training only for classifier; labels include weather as negative
@@ -157,7 +184,9 @@ for fi,(tr,te) in enumerate(folds):
  p_cal=IsotonicRegression(out_of_bounds='clip').fit(p_train,y[tr]).predict(p)
  # multiclass over fault classes, excluding weather if no data in train
  mc=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi)
- mc.fit(X.iloc[tr][base_cols],row_classes[tr]); cp=mc.predict(X.iloc[te][base_cols]); all_cls[te]=cp
+ rc_sel=tr[(y[tr]==1)|((row_classes[tr]=='weather')&protected[tr])]  # spec section 8: injector-labelled rows + protected-window weather only
+ mc.fit(X.iloc[rc_sel][base_cols],row_classes[rc_sel]); cp=np.where(p>=.5,mc.predict(X.iloc[te][base_cols]),'weather'); all_cls[te]=cp  # root cause only given a fault verdict
+ print('fold',fi+1,'multiclass train rows',pd.Series(row_classes[rc_sel]).value_counts().to_dict(),flush=True)
  # baselines
  t0=(X.iloc[te]['t0_hard'].to_numpy()>0)|(X.iloc[te]['t0_soft'].to_numpy()>0)|(X.iloc[te]['z_max'].to_numpy()>6)
  train_prevalence=float(np.clip(y[tr].mean(),1e-3,0.5))
@@ -174,6 +203,8 @@ for fi,(tr,te) in enumerate(folds):
   cols=[c for c in base_cols if c not in drop]
   am=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi)
   am.fit(X.iloc[tr][cols],y[tr]); ap=am.predict(X.iloc[te][cols]); fold_metrics[-1][name+'_f1']=float(f1_score(y[te],ap,zero_division=0))
+  amc=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi).fit(X.iloc[rc_sel][cols],row_classes[rc_sel])
+  abl_flag[name][te]=ap.astype(bool); abl_cls[name][te]=np.where(ap==1,amc.predict(X.iloc[te][cols]),'weather')
  # confusion fault classes for test rows; weather as tenth
  labs=CLASSES+['weather']; cm_total += confusion_matrix(row_classes[te],all_cls[te],labels=labs)
  fold_feature_importance.append(pd.Series(model.feature_importances_,index=base_cols)); fold_of_row[te]=fi; fold_models.append(model)
@@ -191,6 +222,23 @@ metrics['per_class']={}
 for cls in CLASSES:
  yt=(row_classes==cls).astype(int); yp=(all_cls==cls).astype(int); metrics['per_class'][cls]={'precision':float(precision_score(yt,yp,zero_division=0)),'recall':float(recall_score(yt,yp,zero_division=0)),'f1':float(f1_score(yt,yp,zero_division=0))}
 metrics['macro_f1_faults']=float(np.mean([metrics['per_class'][c]['f1'] for c in CLASSES])); metrics['label_counts']=pd.Series(row_classes).value_counts().to_dict(); metrics['neighbours']={'primary_rule':'<=200 km / <=500 m','sparse_rule':'<=300 km / <=800 m','sparse_stations':[s for s in neigh if neigh_kind[s]=='sparse'],'abstain_stations':[s for s in neigh if not neigh[s]],'links':{s:[{'station_id':o,'distance_km':round(d,1),'elevation_diff_m':round(e,1),'kind':neigh_kind[s]} for d,e,o in neigh[s]] for s in neigh}}
+def event_eval(flag,cls_pred):
+ res={}
+ for c in CLASSES:
+  evs=[e for e in events if e['class']==c]; det=[]; det_c=[]; delays=[]
+  for e in evs:
+   f=flag[e['rows']]; det.append(bool(f.any())); det_c.append(bool((f&(cls_pred[e['rows']]==c)).any()))
+   if f.any(): delays.append((time_ns[e['rows'][np.argmax(f)]]-e['start'].value)/3.6e12)
+  res[c]={'n_events':len(evs),'recall':float(np.mean(det)),'recall_class_correct':float(np.mean(det_c)),'median_delay_h':float(np.median(delays)) if delays else None}
+ outside=(row_classes=='weather')&~protected
+ return {'per_class':res,'n_alerts':int(flag.sum()),'alerts_per_1000_outside_events_and_protected':float(1000*flag[outside].sum()/outside.sum()),'share_alerts_inside_event':float(flag[row_classes!='weather'].sum()/max(int(flag.sum()),1))}
+variants={'full':(all_pred>=.5,all_cls),**{n:(abl_flag[n],abl_cls[n]) for n in blocks}}
+metrics['event_level']={n:event_eval(fl,cl) for n,(fl,cl) in variants.items()}
+metrics['per_class_f1_by_variant']={n:{c:float(f1_score((row_classes==c).astype(int),(cl==c).astype(int),zero_division=0)) for c in CLASSES} for n,(fl,cl) in variants.items()}
+metrics['ablation_paired']={n:{'diffs_full_minus_ablated':[a-b for a,b in zip(metrics['metrics']['f1']['folds'],metrics['metrics'][n+'_f1']['folds'])]} for n in blocks}
+for n,r in metrics['ablation_paired'].items(): d=np.array(r['diffs_full_minus_ablated']); r.update({'mean':float(d.mean()),'std':float(d.std(ddof=1)),'folds_ablated_ge_full':int((d<=0).sum())})
+metrics['fold_test_events']={'per_fold':ev_counts.to_dict('index'),'min_max_per_class':{c:[int(ev_counts[c].min()),int(ev_counts[c].max())] for c in CLASSES},'min_train_events_per_class':train_min,'fold_stations':{str(fi+1):sorted(str(s) for s in np.unique(groups[te])) for fi,(_,te) in enumerate(folds)}}
+metrics['confusion_matrix']={'labels':CLASSES+['weather'],'counts':cm_total.tolist()}
 metrics['latency_ms']={'p50':float(np.percentile(lat_times,50)),'p95':float(np.percentile(lat_times,95)),'n_timed':len(lat_times)}
 metrics['false_alarms_per_1000_by_window']={}
 for wname in ['heatwave_a','biparjoy_a','monsoon_c']:
@@ -212,7 +260,7 @@ alert_mask=protected&(all_pred>=.5); n_alerts=int(alert_mask.sum())
 if n_alerts: ax.plot(inj.loc[alert_mask,'time_utc'],inj.loc[alert_mask,'temp_c'],'x',ms=7,color='#e15759',label='alert (P(fault)≥0.5)')
 ax.legend(loc='upper right',fontsize=8); ax.set_title(f'Protected real-event window sample (no injection) — {n_alerts} alerts overlaid'); fig.tight_layout(); fig.savefig(OUT/'figures/heatwave_no_injection.png',dpi=160); plt.close(fig)
 # benchmark report
-lines=['# SkyGuard AI benchmark report','', '## Run configuration','', '- 3-hourly cadence; 1 step = 3 h; lags 1/2/4/8; rolling windows 1/8.', '- Grouped 5-fold cross-validation by station; mean and standard deviation reported.', '- LightGBM models capped at 200 trees; LSTM and edge skipped under free-plan scope.', '- Faults injected outside cluster-specific protected windows; native source gaps are not F7 labels.', '', '## Data and injector','', f"- Injected rows: {len(inj):,}; labelled fault observations: {len(labels):,}; stations: {inj.station_id.nunique()}; protected rows: {protected.sum():,}.", f"- Label counts: {metrics['label_counts']}.", f"- F2 duration: 4–24 steps (12–72 h); F5: 4–80 steps (12 h–10 days); F7: 1–8 steps.", '', '## Metrics (fold mean ± std)','', '| Metric | Mean | Std | |\n|---|---:|---:|']
+lines=['# SkyGuard AI benchmark report','', '## Run configuration','', '- 3-hourly cadence; 1 step = 3 h; lags 1/2/4/8; rolling windows 1/8.', '- Grouped 5-fold cross-validation by station; mean and standard deviation reported.', '- LightGBM models capped at 200 trees; LSTM and edge skipped under free-plan scope.', '- Faults injected outside cluster-specific protected windows; native source gaps are not F7 labels.', '', '## Data and injector','', f"- Injected rows: {len(inj):,}; labelled fault observations: {len(labels):,}; stations: {inj.station_id.nunique()}; protected rows: {protected.sum():,}.", f"- Label counts: {metrics['label_counts']}.", '- Injector samples by event count (min per class: F1 60, F2 40, F3 24, F4 30, F5 30, F6 30, F7 30, F8 60, F9 30; spread over >=8 stations). Durations in steps (1 step = 3 h): F1/F8 1, F2 4–24, F3 56–112, F4 8–80, F5 4–80, F6 4–80, F7 1–8, F9 1–16.', '- **Documented deviation:** F3 drift lasts 7–14 days (56–112 steps), shorter than the spec\'s 7–45 days, so 24 drift events fit in the coverage budget. F9 is back to spec (1–16 steps = 1–48 h).', '- Root-cause head is trained only on injector-labelled rows plus protected-window weather rows (spec section 8); a row receives a root cause only if the binary head flags it (P(fault) >= 0.5), otherwise "weather".', '', '## Metrics (fold mean ± std)','', '| Metric | Mean | Std | |\n|---|---:|---:|']
 for n in ['precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']:
  r=metrics['metrics'][n]; lines.append(f"| {n} | {r['mean']:.4f} | {r['std']:.4f} |")
 lines += ['', '## Per-class root-cause F1 (OOF)', '', '| Class | Precision | Recall | F1 |','|---|---:|---:|---:|']
@@ -220,6 +268,17 @@ for c in CLASSES: r=metrics['per_class'][c]; lines.append(f"| {c} | {r['precisio
 lines += ['', f"Macro-F1 across F1–F9 (OOF): **{metrics['macro_f1_faults']:.4f}**.", '', '## Scoring latency', '', f"- p50: {metrics['latency_ms']['p50']:.3f} ms; p95: {metrics['latency_ms']['p95']:.3f} ms (timed row-by-row on fold 0's test set, n={metrics['latency_ms']['n_timed']}).", '', '## False alarms in protected windows (P(fault) >= 0.5)', '', '| Window | Observations | False alarms / 1,000 |', '|---|---:|---:|']
 for wname,wr in metrics['false_alarms_per_1000_by_window'].items():
  lines.append(f"| {wname} | {wr['n_obs']:,} | {wr['per_1000']:.2f} |" if wr['per_1000'] is not None else f"| {wname} | 0 | n/a |")
+ev=metrics['event_level']
+lines += ['', '## Event-level detection (alongside row-level metrics)', '', 'An event counts as detected if any row inside it has P(fault) >= 0.5. Delay = hours from event start to first flagged row (detected events only).', '', '| Class | Events | Recall | Recall (class correct) | Median delay (h) |', '|---|---:|---:|---:|---:|']
+for c in CLASSES: r=ev['full']['per_class'][c]; lines.append(f"| {c} | {r['n_events']} | {r['recall']:.3f} | {r['recall_class_correct']:.3f} | {'n/a' if r['median_delay_h'] is None else format(r['median_delay_h'],'.1f')} |")
+lines += ['', '| Variant | Alerts | Alerts / 1,000 steps outside events and protected windows | Share of alerts inside an injected event |', '|---|---:|---:|---:|']
+for n,r in ev.items(): lines.append(f"| {n} | {r['n_alerts']:,} | {r['alerts_per_1000_outside_events_and_protected']:.2f} | {r['share_alerts_inside_event']:.3f} |")
+lines += ['', '## Ablation (tier columns removed, heads retrained)', '', '| Tier removed | Paired per-fold F1 diff (full − ablated) | Mean | Std | Folds ablated >= full |', '|---|---|---:|---:|---:|']
+for n,r in metrics['ablation_paired'].items(): lines.append(f"| {n} | {', '.join(format(x,'+.4f') for x in r['diffs_full_minus_ablated'])} | {r['mean']:+.4f} | {r['std']:.4f} | {r['folds_ablated_ge_full']}/5 |")
+lines += ['', '| Variant | '+' | '.join(CLASSES)+' |','|---|'+'---:|'*len(CLASSES)]
+for n,r in metrics['per_class_f1_by_variant'].items(): lines.append(f"| {n} F1 | "+' | '.join(f'{r[c]:.3f}' for c in CLASSES)+' |')
+for n,r in ev.items(): lines.append(f"| {n} event recall | "+' | '.join(f"{r['per_class'][c]['recall']:.3f}" for c in CLASSES)+' |')
+ft=metrics['fold_test_events']; lines += ['', '## Fold event counts', '', f"Min/max test events per class across folds: {ft['min_max_per_class']}. Min train events per class: {ft['min_train_events_per_class']}. Fold stations (GroupKFold default assignment, no reassignment needed): {ft['fold_stations']}."]
 lines += ['', '## Neighbour policy', '', 'Primary links use 200 km / 500 m. Stations with fewer than two primary neighbours use sparse links widened to 300 km / 800 m and a 0.7 T3 confidence multiplier. A station with zero links makes T3 abstain and fusion treats T3 as missing.', '', '## Honest limitations', '', 'The benchmark is an injected-data estimate over a small 12-station network with substantial native gaps. Results below specification targets, if any, are reported without tuning them away.', '', '## Figures', '', '- `outputs/figures/per_class_f1.png`', '- `outputs/figures/ablation.png`', '- `outputs/figures/confusion_matrix.png`', '- `outputs/figures/example_fault_spans.png`', '- `outputs/figures/heatwave_no_injection.png`']
 (OUT/'benchmark_report.md').write_text('\n'.join(lines)+'\n')
 # scored stream sample / alerts examples
@@ -234,6 +293,7 @@ FEATURE_TEMPLATES=[
  (lambda f: f.startswith('z3_'), lambda f,val,v: f"{f[3:]} disagrees with neighbouring stations (z={val:.1f})"),
  (lambda f: f.startswith('neighbour_agreement_'), lambda f,val,v: f"neighbours mostly disagree on {f[len('neighbour_agreement_'):]}"),
  (lambda f: f.endswith('_zero4'), lambda f,val,v: f"{f[:-6]} has been unchanged for 4+ steps"),
+ (lambda f: f.startswith('slow_'), lambda f,val,v: f"{f[5:]} shows a sustained bias, drift or variance change ({val:.2f})"),
  (lambda f: f.endswith('_missing'), lambda f,val,v: f"{f[:-8]} is missing"),
 ]
 def describe_feature(f,val):

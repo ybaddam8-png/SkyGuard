@@ -108,3 +108,49 @@ reported honestly, not tuned toward the target. `monsoon_c`'s false-alarm rate (
 is high relative to the other two protected windows, though it's also the smallest window
 (342 observations) so it's noisy. No number in this session was hand-edited; every figure
 above came from an actual pipeline run.
+
+## fix/slow-faults: injector event-count sampling and slow-signal features
+
+**Diagnosis (before any change).** F3/F4/F5 scored F1 = 0.0 and F9 0.043 for three reasons:
+(1) the multiclass head trained on ~76-84k unprotected weather rows against 135-717 rows per
+fault class and was scored as an ungated argmax on every row; (2) the spec section 8
+slow-signal evidence (T3 residual rolling mean, CUSUM, residual-variance ratio) did not exist;
+(3) the old coverage-budget injector produced only 2 F3 events (both in one CV fold, so fold 1
+tested F3 with a model that had never seen it), 10 F4, 8 F5 and 5 F9 events. Per-class results
+were unmeasurable, so the old numbers are labelled "old injector" and are not like-for-like.
+
+**Changes.**
+- `src/skyguard_inject.py`: samples by event count (per-class minimums F1 60, F2 40, F3 24, F4 30,
+  F5 30, F6 30, F7 30, F8 60, F9 30; code uses 70/60/24/36/36/30/36/70/36 so F3 stays under 30% of
+  labelled rows), cycles stations so every class lands on all 12, no overlapping events or
+  protected rows. Durations in 3 h steps: F9 1-16, F3 56-112, F4 8-80, F5 4-80, F2 4-24.
+  Documented deviation: F3 is 7-14 days, not the spec's 7-45. Coverage 6.7% (band 4-8%).
+- `tests/test_injector.py`: prevalence band 4-8%, minimum events and >= 8 stations per class,
+  duration bounds, max class share < 30%.
+- `src/run_step2.py`: causal per-station features `slow_t3_*_rmean8/24`, two-sided CUSUM of z3
+  clipped to [-5, 5] (k = 0.5), `slow_t1_*_varratio` and `slow_t2_*_varratio` (rolling std over 8
+  steps / station healthy std from clean data); multiclass head trained on labelled rows plus
+  protected-window weather, `class_weight='balanced'`, root cause only where P(fault) >= 0.5;
+  ablation blocks extended with the matching slow features; per-fold test/train event counts
+  printed and asserted (no reassignment needed: min 4 test events, min 18 train events per class);
+  event-level recall, class-correct recall, median detection delay, alerts per 1,000 steps outside
+  events and protected windows, share of alerts inside events; per-class F1 and event recall per
+  ablation; paired per-fold ablation differences; confusion matrix saved in `metrics.json`.
+
+**Results (new injector; not comparable to old).** Binary F1 0.484 +/- 0.066, macro-F1 (OOF) 0.433.
+Per-class F1: F1 0.528, F2 0.651, F3 0.016, F4 0.061, F5 0.735, F6 0.867, F7 0.104, F8 0.745, F9 0.193.
+F5 and F6 recovered; F3, F4 and F9 did not. Stop rule triggered (F3/F4 under 0.2 F1 with 24/36
+events): no further changes made.
+
+**Why F3/F4 stay low (measured).** The binary head flags F3 rows at about 4.5% in every quartile of
+the event, i.e. no better than its background alert rate, so drift never becomes visible even late
+in an event; F4 is flagged at 14-22%. F3 rows are mostly predicted "weather" (1801/1887); of the
+F4 rows that are flagged, more are called F3 than F4. Event-level F3 recall of 0.79 is mostly the
+background alert rate: about 44 alerts per 1,000 clean steps over an 84-step event makes a stray
+flag near-certain, and class-correct F3 recall is 0.25. Read event recall next to the alert rate.
+
+**Ablation.** Flat to slightly negative: removing a tier changes binary F1 by less than fold noise
+(paired diffs full - ablated: no_T1 +0.027 mean, 0/5 folds where ablated >= full; no_T2 +0.009,
+1/5; no_T3 +0.010 with std 0.044, 3/5). Unlike before, no_T2 no longer beats full in all folds. T2 was not removed.
+F7 event recall fell to 0.25 (F1 0.10) under the new injector; not investigated. Hypothesis, unverified:
+native source gaps carry the same all-NaN signature as F7 rows.

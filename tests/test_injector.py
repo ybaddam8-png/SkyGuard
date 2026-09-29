@@ -7,7 +7,9 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from skyguard_inject import inject_faults, VARS, CLASSES  # noqa: E402
+from skyguard_inject import inject_faults, VARS, CLASSES, DURATION_STEPS  # noqa: E402
+
+REQUIRED_MIN_EVENTS = {'F1': 60, 'F2': 40, 'F3': 24, 'F4': 30, 'F5': 30, 'F6': 30, 'F7': 30, 'F8': 60, 'F9': 30}
 
 BOUNDS = {'temp_c': (-80.0, 60.0), 'mslp_hpa': (870.0, 1085.0), 'rh_pct': (0.0, 100.0)}
 
@@ -28,12 +30,12 @@ def clean_and_protected():
     return clean, protected
 
 
-def test_overall_prevalence_in_3_to_5_percent(clean_and_protected):
+def test_overall_prevalence_in_4_to_8_percent(clean_and_protected):
     clean, protected = clean_and_protected
     inj, labels = inject_faults(clean, protected, seed=42)
     faulty = (inj.injected_faults != '').sum()
     pct = faulty / len(clean)
-    assert 0.03 <= pct <= 0.05, f'faulty coverage {pct:.4f} outside 3-5% band'
+    assert 0.04 <= pct <= 0.08, f'faulty coverage {pct:.4f} outside 4-8% band'
 
 
 def test_no_class_exceeds_30_percent_of_faulty_rows(clean_and_protected):
@@ -87,3 +89,27 @@ def test_f6_pins_exactly(clean_and_protected):
     assert checked > 0
 
 
+
+
+def _events(labels):
+    return labels.drop_duplicates(['station_id', 'variable', 'class', 'start', 'end'])
+
+
+def test_minimum_events_and_station_spread(clean_and_protected):
+    clean, protected = clean_and_protected
+    _, labels = inject_faults(clean, protected, seed=42)
+    ev = _events(labels)
+    for cls, need in REQUIRED_MIN_EVENTS.items():
+        sub = ev[ev['class'] == cls]
+        assert len(sub) >= need, f'{cls}: {len(sub)} events < {need}'
+        assert sub.station_id.nunique() >= 8, f'{cls}: only {sub.station_id.nunique()} stations'
+
+
+def test_event_durations_within_spec(clean_and_protected):
+    clean, protected = clean_and_protected
+    _, labels = inject_faults(clean, protected, seed=42)
+    ev = _events(labels)
+    steps = ((ev['end'] - ev['start']).dt.total_seconds() / 10800).round() + 1
+    for cls, (lo, hi) in DURATION_STEPS.items():
+        s = steps[ev['class'] == cls]
+        assert s.min() >= lo and s.max() <= hi, f'{cls} durations {s.min()}-{s.max()} outside {lo}-{hi}'

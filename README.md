@@ -9,35 +9,45 @@ T2/T3-blended imputation) have all been run. `outputs/metrics.json` and
 `outputs/benchmark_report.md` are real results from this pipeline, not placeholders.
 
 Current benchmark (5-fold grouped-by-station CV, fold mean ± std; regenerate with
-`make bench` to reproduce these numbers from scratch):
+`make bench`). **These numbers come from the event-count injector and are not
+like-for-like comparable to earlier README numbers (F1 0.584, macro-F1 0.411), which came
+from the old coverage-budget injector that produced too few slow-fault events.**
 
 | Metric | Mean | Std |
 |---|---:|---:|
-| Fusion model F1 (binary fault/no-fault) | 0.584 | 0.113 |
-| Macro-F1 across F1-F9 (fold mean) | 0.411 | 0.026 |
-| WMO-rules (T0-only) baseline F1 | 0.390 | 0.032 |
-| Isolation Forest baseline F1 | 0.292 | 0.112 |
-| "Always fault" trivial baseline F1 | 0.080 | 0.009 |
-| ECE, raw probabilities | 0.076 | 0.014 |
-| ECE, after isotonic calibration | 0.018 | 0.009 |
+| Fusion model F1 (binary fault/no-fault) | 0.484 | 0.066 |
+| Macro-F1 across F1-F9 (fold mean) | 0.440 | 0.030 |
+| WMO-rules (T0-only) baseline F1 | 0.413 | 0.063 |
+| Isolation Forest baseline F1 | 0.230 | 0.054 |
+| "Always fault" trivial baseline F1 | 0.126 | 0.006 |
+| ECE, raw probabilities | 0.127 | 0.014 |
+| ECE, after isotonic calibration | 0.043 | 0.009 |
 
-Scoring latency (row-by-row, fold 0's test set, n=500): p50 0.99 ms, p95 1.76 ms.
+Scoring latency (row-by-row, fold 0's test set, n=500): p50 0.95 ms, p95 1.21 ms.
 
 False alarms per 1,000 observations inside protected windows (P(fault)>=0.5, should be
-low since these windows are never fault-injected): heatwave_a 11.6/1000 (1,632 obs),
-biparjoy_a 4.8/1000 (210 obs), monsoon_c 87.7/1000 (342 obs, the smallest window and the
-noisiest baseline — see "Honest limitations" in `outputs/benchmark_report.md`).
+low since these windows are never fault-injected): heatwave_a 11.0/1000 (1,632 obs),
+biparjoy_a 4.8/1000 (210 obs), monsoon_c 78.9/1000 (342 obs).
 
-Dataset: 105,216 station-times across 12 stations, 4,499 labelled fault observations
-(4.2% of rows), 2,184 rows inside protected windows.
+Dataset: 105,216 station-times across 12 stations, 7,065 labelled fault
+observations, 2,184 rows inside protected windows.
 
-**What's still weak:** macro-F1 across the 9 fault classes (0.41) is well under the
-spec's 0.90 target — this is a small 12-station network with a real LightGBM model, not
-a tuned demo, and the number is reported honestly rather than adjusted to look better.
-The `monsoon_c` false-alarm rate is high relative to the other two windows; it is also
-the smallest window (342 observations), so a handful of false alarms swings the rate a
-lot. Calibration meaningfully improves ECE (0.076 -> 0.018) but does not change the F1
-numbers, which are uncalibrated-probability decisions at the 0.5 threshold.
+**Injector (event-count sampling).** Minimum events per class across the 12 stations
+(F1 60, F2 40, F3 24, F4 30, F5 30, F6 30, F7 30, F8 60, F9 30; the code uses slightly
+higher counts, each class on all 12 stations). Events never overlap each other or protected windows.
+Durations (1 step = 3 h): F2 4-24, F3 56-112, F4 8-80, F5 4-80, F9 1-16 steps. Faulty coverage
+must be 4-8% with no class above 30% of labelled rows (both tested).
+**Documented deviation:** F3 drift lasts 7-14 days, shorter than the spec's 7-45 days, so 24
+drift events fit in the coverage budget.
+
+**Folds.** Default `GroupKFold` station assignment was kept: every test fold holds at least 4 events of
+every class and every training set at least 18 (per-fold counts and station lists are in
+`outputs/metrics.json` under `fold_test_events` and in `outputs/benchmark_report.md`). No reassignment was needed.
+
+**What's still weak:** macro-F1 across the 9 fault classes is well under the spec's 0.90 target
+and F3 (drift) and F4 (offset) stay near zero row-level F1 even with adequate event counts;
+see `outputs/benchmark_report.md` (event-level recall, per-class ablation) and `SESSION-LOG.md`.
+The `monsoon_c` false-alarm rate is high relative to the other two windows and it is the smallest window.
 
 Scope:
 
