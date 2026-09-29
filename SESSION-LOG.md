@@ -413,3 +413,33 @@ regenerated.
 Finding: most stations score low on F-10 health. Injected F6/F8 values inflate sigma_r, and the bias
 term |b|/tau is strict at tau = 0.5 C / 0.5 hPa. That is how the spec formula reads the injected
 stream; the weights were not changed.
+
+## fix/dashboard-data — explanation variable, F-10 tolerance, segment caption
+
+0. `outputs/scored_stream.parquet` untracked (.gitignore). The branch was unpushed, so the export commit
+   was rebuilt without the 19 MB blob. `tests/test_replay.py` reads the parquet only after `make all`
+   rebuilds it; a fresh clone plus `make all` passes.
+1. Sentence builder: the flagged variable is the one with the largest positive SHAP mass. The top-3
+   factors and the witnesses are built for that variable, and untemplated "x=0.00 contributed" factors
+   are dropped. Gap rows say "No observation received for N steps" and quote no sigma. The binary-head
+   top factor used by `explanation_quality` is unchanged, so metrics.json is unchanged apart from the
+   latency timer. On detected single-variable fault rows, the share whose leading variable equals the
+   injected variable went from 0.803 to 0.929:
+   F1 0.943 -> 0.989, F2 0.774 -> 0.934, F3 0.846 -> 0.896, F4 0.833 -> 0.890, F5 0.715 -> 0.920,
+   F6 0.873 -> 0.971, F8 0.977 -> 0.989, F9 0.812 -> 0.848. For F7 (215 rows), the gap sentence went
+   from 0 % to 100 % of rows, and the share quoting sigma went from 100 % to 0 %.
+2. Health diagnosis (`src/health_diagnosis.py`, `outputs/health_diagnosis.json`). On clean stretches
+   (no injected fault and no alert in 30 days): median |b|/tau 0.72, f30 0, variance ratio 0.91, H 58.6,
+   with 20 % of steps at H = 0. On injected stretches: |b|/tau 3.22, f30 0.08, ratio 1.89, H 0. The
+   healthy EWMA-bias std is about one tolerance (median sd/tau: temp 1.40, pressure 1.09, RH 0.93), so
+   the bias term saturates on clean data. Adopted tau_eff = max(spec tolerance, 3 x healthy EWMA-bias
+   std), taken from the clean stream only; this is a documented deviation from the spec, and the weights
+   are unchanged. Acceptance test on 74 F3/F4 bias windows vs 744 clean windows: AUC-ROC 0.769 -> 0.799;
+   median H (bias / clean) 0 / 53 -> 49 / 84; clean station-variables at H >= 80 2 % -> 76 %. AUC is
+   above 0.65, so health is not labelled experimental. Days-to-maintenance was never shown.
+3. Segment B caption: "Injected events shown for illustration; detection rates are in the benchmark
+   view."
+4. Screenshot 03 re-taken on B-F5 (42101, injected on temp_c; the sentence leads with temp_c; p 0.997,
+   critical). Screenshot 04 re-taken. 01, 02, 05 and 06 are unchanged.
+Verified: `make all` (9 passed), `pnpm run check`, `pnpm run build`, and 0 console errors in
+Playwright.
