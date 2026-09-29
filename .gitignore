@@ -14,3 +14,4 @@ coverage/
 .pytest_cache/
 .manus-logs/
 .code-review-graph/
+outputs/scored_stream.parquet
