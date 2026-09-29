@@ -494,15 +494,20 @@ lines += ['', '## Neighbour policy', '', 'Primary links use 200 km / 500 m. Stat
 # ---------- explanations (SHAP) and imputation (T2/T3 blend, T1 fallback) ----------
 inj_lookup={v:{(str(s),t): val for s,t,val in zip(Xraw.station_id,Xraw.time_utc,Xraw[v])} for v in VARS}
 row_idx_by_key={(str(s),t): i for i,(s,t) in enumerate(zip(Xraw.station_id,Xraw.time_utc))}
+def sg(x,nd=1):
+ # quoted scores in alert sentences are capped: beyond 10 sigma the exact number carries no extra meaning
+ return '>10' if abs(x)>10 else f'{x:.{nd}f}'
+def zq(x): return 'z >10' if abs(x)>10 else f'z={x:.1f}'
 FEATURE_TEMPLATES=[
+ (lambda f: f=='z_max', lambda f,val,v: f"the largest tier score is {sg(val)} sigma"),
  (lambda f: f=='t0_hard', lambda f,val,v: 'a hard physical-range or persistence rule fired'),
  (lambda f: f=='t0_soft', lambda f,val,v: 'a soft step-limit or frozen-value rule fired'),
- (lambda f: f.startswith('z1_'), lambda f,val,v: f"{f[3:]} deviates {val:.1f} sigma from this station's own recent history"),
- (lambda f: f.startswith('z2_'), lambda f,val,v: f"{f[3:]} is inconsistent with the station's other variables (z={val:.1f})"),
- (lambda f: f.startswith('z3_'), lambda f,val,v: f"{f[3:]} disagrees with neighbouring stations (z={val:.1f})"),
+ (lambda f: f.startswith('z1_'), lambda f,val,v: f"{f[3:]} deviates {sg(val)} sigma from this station's own recent history"),
+ (lambda f: f.startswith('z2_'), lambda f,val,v: f"{f[3:]} is inconsistent with the station's other variables ({zq(val)})"),
+ (lambda f: f.startswith('z3_'), lambda f,val,v: f"{f[3:]} disagrees with neighbouring stations ({zq(val)})"),
  (lambda f: f.startswith('neighbour_agreement_'), lambda f,val,v: f"neighbours mostly disagree on {f[len('neighbour_agreement_'):]}"),
  (lambda f: f.endswith('_zero4'), lambda f,val,v: f"{f[:-6]} has been unchanged for 4+ steps"),
- (lambda f: f.startswith('slow_'), lambda f,val,v: f"{f[5:]} shows a sustained bias, drift or variance change ({val:.2f})"),
+ (lambda f: f.startswith('slow_'), lambda f,val,v: f"{f[5:]} shows a sustained bias, drift or variance change ({sg(val,2)})"),
  (lambda f: f=='is_missing', lambda f,val,v: 'the expected timestamp is missing (gap rule, F7)'),
  (lambda f: f=='gap_length_before', lambda f,val,v: f'a {val:.0f}-step gap just ended'),
  (lambda f: f.endswith('_missing'), lambda f,val,v: f"{f[:-8]} is missing"),
@@ -510,7 +515,7 @@ FEATURE_TEMPLATES=[
 def describe_feature(f,val):
  for cond,tmpl in FEATURE_TEMPLATES:
   if cond(f): return tmpl(f,val,None)
- return f"{f}={val:.2f} contributed"
+ return f"{f}={sg(val,2)} contributed" if f.endswith('_clim_z') else f"{f}={val:.2f} contributed"
 explainer_cache={}
 def get_explainer(fi):
  if fi not in explainer_cache: explainer_cache[fi]=shap.TreeExplainer(fold_models[fi])
@@ -529,9 +534,10 @@ def witnesses(i):
  for tier,name in (('t1','T1 station history'),('t2','T2 cross-variable'),('t3','T3 neighbours')):
   if tier=='t3' and all(X.at[i,'neighbour_confidence_'+v]==0 for v in VARS): abst.append(name); continue
   z={v:abs(float(X.at[i,f'slow_{tier}_{v}_res'])) for v in VARS}; v=max(z,key=z.get)
-  (obj if z[v]>WIT_Z else quiet).append(f"{name} ({v} {z[v]:.1f} sigma)")
- zs=max(abs(float(X.at[i,f'slow_{t}_{v}_rmean24'])) for t in ('t1','t3') for v in VARS)
- (obj if zs>WIT_Z else quiet).append(f"slow-signal (24-step mean {zs:.1f} sigma)")
+  (obj if z[v]>WIT_Z else quiet).append(f"{name} ({v} {sg(z[v])} sigma)")
+ if X.at[i,'t0_hard']==0:  # a sentinel or hard fail dominates any rolling mean, so the slow-signal witness is not quoted then
+  zs=max(abs(float(X.at[i,f'slow_{t}_{v}_rmean24'])) for t in ('t1','t3') for v in VARS)
+  (obj if zs>WIT_Z else quiet).append(f"slow-signal (24-step mean {sg(zs)} sigma)")
  return 'Objected: '+(', '.join(obj) or 'none')+'. Did not object: '+(', '.join(quiet) or 'none')+('. Abstained: '+', '.join(abst) if abst else '')+'.'
 def explain_rows(idxs):
  out={}

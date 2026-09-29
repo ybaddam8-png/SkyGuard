@@ -97,6 +97,32 @@ Scope:
 - Evaluation uses grouped **5-fold cross-validation by station**.
 - Current pipeline cadence is **3-hourly synoptic time**: 00, 03, ..., 21 UTC.
 
+## Limits and reading of the PS
+
+- **"Only T, P, RH".** We read this as: no other weather parameters (no wind, rain, dew point feed or
+  reanalysis). The engine uses only temperature, sea-level pressure and relative humidity. For
+  spatial consistency (T3) it also uses neighbouring stations' T/P/RH and station coordinates and
+  elevation. Without neighbours the engine still works: T3 abstains for a station with no links,
+  and the no-T3 ablation (all T3 features removed, heads retrained) runs the full pipeline.
+- **Macro-F1 is 0.60, against the spec's 0.90 target.** Binary F1 is 0.70
+  (15-station default, grouped 5-fold CV by station).
+- **Alert volume is above target.** Alerts are 2.3 % of clean steps at P(fault) >= 0.5 and
+  2.3 % at the threshold chosen on training folds for 2 %; the 2 % target is not met on test folds.
+- **Protected windows are not a general false-alarm rate.** They are quieter than ordinary clean
+  data, partly because no injected event sits near them. Causal rolling features spill over after an
+  event ends: clean rows 1-8 steps after an event alerted at 142.6 per 1,000 against 17.9 far from
+  events (measured on the 12-station run, Stage A in `SESSION-LOG.md`).
+- **F7 (dropout) scores are definitional.** Every missing timestamp is flagged F7 by rule, and native
+  source gaps are excluded from scoring because the labels cannot separate them from injected gaps.
+  Counting native gaps as negatives gives F7 precision 0.014.
+- **Drift (F3) is mostly near the noise floor.** Most spec-range drifts have a mean error at or below
+  the noise of the neighbour residual (3 sigma of its 56-step mean, median over the 15 default stations: 1.91 °C,
+  1.51 hPa, 13.4 % RH). F3 F1 is 0.20; class-correct event recall 0.48.
+- **What the benchmark is.** Faults are injected by `src/skyguard_inject.py` into real Meteostat
+  observations (`model=False`, no interpolation, exact 3-hourly synoptic timestamps). Pressure is
+  sea-level pressure; station pressure is not available from the source. Results are an
+  injected-fault estimate, not a field validation.
+
 ## Station-set comparison
 
 Default benchmark = 15 stations (the 12 original plus 3 new stations with complete-triplet synoptic coverage >= 50 %).

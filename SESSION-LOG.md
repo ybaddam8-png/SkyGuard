@@ -367,3 +367,12 @@ factor of the binary head on flagged injected-fault rows, up to 300 per class): 
 F9 from T2 0.641. Weakness seen: the slow-signal witness can quote a very large 24-step mean that is
 spillover from a nearby injected sentinel (F8 -9999). `make all` (pytest 8 passed),
 `make sync-dashboard`, `pnpm run build` and `pnpm run check` pass.
+
+## fix/detectability — polish: alert sentences and PS reading
+
+Alert sentences cap every quoted score at ">10 sigma" (tier z-scores, witness residuals, largest tier
+score, climatology z), and the slow-signal witness is not quoted when a T0 sentinel or hard-fail flag
+is set on the row. Regenerated via `make all` (explanations need the fold models); metrics unchanged
+(binary F1 0.698, macro-F1 0.597). Checked all 110 explanation sentences in `alerts_examples.json` and
+`scored_stream_sample.json`: none quotes a number above 10 sigma. README gained "Limits and reading of
+the PS". `make all` (pytest 8 passed), `make sync-dashboard`, `pnpm run build` pass.
