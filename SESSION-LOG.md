@@ -154,3 +154,41 @@ flag near-certain, and class-correct F3 recall is 0.25. Read event recall next t
 1/5; no_T3 +0.010 with std 0.044, 3/5). Unlike before, no_T2 no longer beats full in all folds. T2 was not removed.
 F7 event recall fell to 0.25 (F1 0.10) under the new injector; not investigated. Hypothesis, unverified:
 native source gaps carry the same all-NaN signature as F7 rows.
+
+## fix/detectability — Stage 0: diagnosis (no code change)
+
+Measured on the clean base (T3 residual in physical units = station climatology deviation minus
+the distance/elevation-weighted mean of neighbour deviations, same rule as `run_step2.py`).
+
+**a) Noise floor (median over 12 stations).** std of the 1-step / 8-step / 24-step / 56-step mean of
+the healthy T3 residual: temp 1.55 / 1.03 / 0.82 / 0.64 °C; mslp 1.04 / 0.68 / 0.59 / 0.54 hPa;
+RH 9.0 / 6.4 / 5.2 / 4.5 %. Averaging barely helps (56 steps cuts std only 2.4x, not 7.5x): the
+residual is strongly autocorrelated. Minimum detectable bias (3 sigma of the 56-step mean):
+temp ~1.9 °C (1.5-2.5), mslp ~1.6 hPa (0.8-5.9; stations 42921 and 43063 are ~5.3-5.9 hPa),
+RH ~13 % (10-19).
+
+**b) SNR of injected events** (magnitude / station-variable 56-step-mean std):
+F3: <1: 9, 1-2: 6, 2-4: 7, >4: 2. F4: <1: 1, 1-2: 13, 2-4: 13, >4: 9. All 9 RH drift events are
+SNR < 1 because the injector draws F3 magnitude 0.5-3 for every variable, while the spec says
+3-15 % for RH (injector bug, below spec). Every station holds 1-3 F3 and 2-3 F4 events.
+
+**c) Code audit.**
+- CUSUM resets / decision interval: **no** (plain accumulation, no h, no reset). Input centred on the
+  station's healthy mean: **no**. Worse: its input z3 uses `sigma_min` = the station's p99.9 3-h
+  step (~13 °C, ~6 hPa, ~50 % RH) in the denominator, so a 3 °C offset gives z3 ≈ 0.2, below the
+  allowance k = 0.5. The CUSUM and the z3 rolling means added in fix/slow-faults were near-dead.
+- T2 includes the target's own lags or rolling stats: **no lags**, but T2 is not a model at all:
+  `z2_v = clim_z_v - 0.15 * (other clim_z)`, i.e. mostly the variable's own climatology anomaly.
+- Gap rows filled with 0: **yes** (`fillna(0)` on every feature; raw values become 0). Per-variable
+  `_missing` flags exist; no `is_missing` (whole timestamp) or `gap_length_before`. Native gaps
+  (0.1-17 % of rows per station) are labelled "weather" and look identical to injected F7 rows.
+- Coherent-event gate (spec section 8): **not implemented**.
+- Also: T1 feeds the target's own lags, so after an offset/drift onset the T1 median follows the
+  biased value; T3 uses a weighted mean, not the spec's weighted median.
+
+**d) What explains the failures.** F3/F4: mostly the dead z3 scale (model problem) plus a real
+noise floor (15/24 F3 events have SNR < 2; all RH drifts are below floor by injector bug). F7:
+label ambiguity with native gaps; the model cannot separate them from features. Wrong
+hypotheses from fix/slow-faults: that the slow features "did not help" was not evidence of a
+noise floor, because they were built on a z-score whose floor swamped any bias; and the CUSUM
+[-5, 5] clip was irrelevant because z3 almost never exceeded 0.5.
