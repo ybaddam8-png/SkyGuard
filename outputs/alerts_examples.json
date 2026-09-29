@@ -11,19 +11,19 @@
     "p_fault": 0.9973961186432065,
     "severity": "critical",
     "root_cause": "F1",
-    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z >10); the largest tier score is >10 sigma. Root cause: F1. Objected: T0 rules, T1 station history (temp_c >10 sigma), T2 cross-variable (temp_c >10 sigma), T3 neighbours (temp_c 7.7 sigma), slow-signal (24-step mean >10 sigma). Did not object: none.",
+    "explanation": "temp_c flagged: temp_c is inconsistent with the station's other variables (z >10); t2_temp_c_varratio shows a sustained bias, drift or variance change (>10); t1_temp_c_rmean24 shows a sustained bias, drift or variance change (>10). Root cause: F1. Objected: T0 rules, T1 station history (temp_c >10 sigma), T2 cross-variable (temp_c >10 sigma), T3 neighbours (temp_c 7.7 sigma), slow-signal (temp_c 24-step mean >10 sigma). Did not object: none.",
     "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.0914216981787184
-      },
       {
         "feature": "z2_temp_c",
         "shap": 1.46943887765752
       },
       {
-        "feature": "z_max",
-        "shap": 0.7322023193979196
+        "feature": "slow_t2_temp_c_varratio",
+        "shap": 0.5659993407597663
+      },
+      {
+        "feature": "slow_t1_temp_c_rmean24",
+        "shap": 0.3501257602441897
       }
     ],
     "imputed": {
@@ -68,19 +68,19 @@
     "p_fault": 0.9991480685902923,
     "severity": "critical",
     "root_cause": "F2",
-    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=4.0); t1_rh_pct_varratio shows a sustained bias, drift or variance change (0.00). Root cause: F2. Objected: T0 rules, T2 cross-variable (temp_c 9.8 sigma), T3 neighbours (rh_pct 6.8 sigma). Did not object: T1 station history (temp_c 1.7 sigma), slow-signal (24-step mean 2.7 sigma).",
+    "explanation": "rh_pct flagged: t1_rh_pct_varratio shows a sustained bias, drift or variance change (0.00); t2_rh_pct_varratio shows a sustained bias, drift or variance change (2.50); rh_pct is inconsistent with the station's other variables (z=9.0). Root cause: F2. Objected: T0 rules, T2 cross-variable (rh_pct 8.5 sigma), T3 neighbours (rh_pct 6.8 sigma). Did not object: T1 station history (rh_pct 0.0 sigma), slow-signal (rh_pct 24-step mean 2.7 sigma).",
     "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.041072599735135
-      },
-      {
-        "feature": "z2_temp_c",
-        "shap": 1.3952300897074075
-      },
       {
         "feature": "slow_t1_rh_pct_varratio",
         "shap": 1.3253448483554953
+      },
+      {
+        "feature": "slow_t2_rh_pct_varratio",
+        "shap": 0.3082286160984871
+      },
+      {
+        "feature": "z2_rh_pct",
+        "shap": 0.23158552753152378
       }
     ],
     "imputed": {
@@ -125,7 +125,7 @@
     "p_fault": 0.9919643803348299,
     "severity": "critical",
     "root_cause": "F3",
-    "explanation": "temp_c is inconsistent with the station's other variables (z >10); t2_temp_c_varratio shows a sustained bias, drift or variance change (>10); the largest tier score is >10 sigma. Root cause: F3. Objected: T1 station history (temp_c >10 sigma), T2 cross-variable (temp_c >10 sigma), T3 neighbours (temp_c >10 sigma), slow-signal (24-step mean >10 sigma). Did not object: T0 rules.",
+    "explanation": "temp_c flagged: temp_c is inconsistent with the station's other variables (z >10); t2_temp_c_varratio shows a sustained bias, drift or variance change (>10); t1_temp_c_rmean24 shows a sustained bias, drift or variance change (>10). Root cause: F3. Objected: T1 station history (temp_c >10 sigma), T2 cross-variable (temp_c >10 sigma), T3 neighbours (temp_c >10 sigma), slow-signal (temp_c 24-step mean >10 sigma). Did not object: T0 rules.",
     "top_factors": [
       {
         "feature": "z2_temp_c",
@@ -136,8 +136,8 @@
         "shap": 0.7379996887201318
       },
       {
-        "feature": "z_max",
-        "shap": 0.7080017323613044
+        "feature": "slow_t1_temp_c_rmean24",
+        "shap": 0.374604952724198
       }
     ],
     "imputed": {
@@ -180,7 +180,7 @@
     "p_fault": 0.9934101398269148,
     "severity": "critical",
     "root_cause": "F4",
-    "explanation": "t2_temp_c_varratio shows a sustained bias, drift or variance change (2.20); temp_c is inconsistent with the station's other variables (z=3.1); e_jump=8.86 contributed. Root cause: F4. Objected: none. Did not object: T0 rules, T1 station history (mslp_hpa 0.3 sigma), T2 cross-variable (temp_c 2.1 sigma), T3 neighbours (mslp_hpa 2.4 sigma), slow-signal (24-step mean 2.8 sigma).",
+    "explanation": "temp_c flagged: t2_temp_c_varratio shows a sustained bias, drift or variance change (2.20); temp_c is inconsistent with the station's other variables (z=3.1); t1_temp_c_varratio shows a sustained bias, drift or variance change (0.03). Root cause: F4. Objected: none. Did not object: T0 rules, T1 station history (temp_c 0.1 sigma), T2 cross-variable (temp_c 2.1 sigma), T3 neighbours (temp_c 1.0 sigma), slow-signal (temp_c 24-step mean 0.3 sigma).",
     "top_factors": [
       {
         "feature": "slow_t2_temp_c_varratio",
@@ -191,8 +191,8 @@
         "shap": 1.2755840513976395
       },
       {
-        "feature": "e_jump",
-        "shap": 0.607202803848406
+        "feature": "slow_t1_temp_c_varratio",
+        "shap": 0.21985629902788364
       }
     ],
     "imputed": {
@@ -226,7 +226,7 @@
   {
     "station_id": "42131",
     "time_utc": "2025-04-28T21:00:00+00:00",
-    "variable": "temp_c",
+    "variable": "mslp_hpa",
     "observed": {
       "temp_c": 28.0,
       "mslp_hpa": 976.896712015398,
@@ -235,12 +235,8 @@
     "p_fault": 0.9988860246546962,
     "severity": "critical",
     "root_cause": "F5",
-    "explanation": "a soft step-limit or frozen-value rule fired; t2_mslp_hpa_varratio shows a sustained bias, drift or variance change (9.56); t3_mslp_hpa_res shows a sustained bias, drift or variance change (>10). Root cause: F5. Objected: T0 rules, T1 station history (mslp_hpa >10 sigma), T2 cross-variable (mslp_hpa >10 sigma), T3 neighbours (mslp_hpa >10 sigma), slow-signal (24-step mean >10 sigma). Did not object: none.",
+    "explanation": "mslp_hpa flagged: t2_mslp_hpa_varratio shows a sustained bias, drift or variance change (9.56); t3_mslp_hpa_res shows a sustained bias, drift or variance change (>10); t3_mslp_hpa_cusum_alarms56 shows a sustained bias, drift or variance change (>10). Root cause: F5. Objected: T0 rules, T1 station history (mslp_hpa >10 sigma), T2 cross-variable (mslp_hpa >10 sigma), T3 neighbours (mslp_hpa >10 sigma), slow-signal (mslp_hpa 24-step mean >10 sigma). Did not object: none.",
     "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.721433914105459
-      },
       {
         "feature": "slow_t2_mslp_hpa_varratio",
         "shap": 1.5263698840190583
@@ -248,14 +244,18 @@
       {
         "feature": "slow_t3_mslp_hpa_res",
         "shap": 0.46292721120294705
+      },
+      {
+        "feature": "slow_t3_mslp_hpa_cusum_alarms56",
+        "shap": 0.35711425024187654
       }
     ],
     "imputed": {
-      "value": 24.967,
-      "low": 22.722,
-      "high": 27.211,
+      "value": 1004.672,
+      "low": 1003.507,
+      "high": 1005.837,
       "method": "blend_t2_t3",
-      "neighbour": 25.792
+      "neighbour": 1004.358
     },
     "tier_scores": {
       "t0": [
@@ -292,12 +292,8 @@
     "p_fault": 0.9997002234684409,
     "severity": "critical",
     "root_cause": "F6",
-    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z >10); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.82). Root cause: F6. Objected: T0 rules, T1 station history (temp_c >10 sigma), T2 cross-variable (temp_c >10 sigma), T3 neighbours (temp_c >10 sigma), slow-signal (24-step mean >10 sigma). Did not object: none.",
+    "explanation": "temp_c flagged: temp_c is inconsistent with the station's other variables (z >10); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.82); t3_temp_c_cusum_alarms56 shows a sustained bias, drift or variance change (>10). Root cause: F6. Objected: T0 rules, T1 station history (temp_c >10 sigma), T2 cross-variable (temp_c >10 sigma), T3 neighbours (temp_c >10 sigma), slow-signal (temp_c 24-step mean >10 sigma). Did not object: none.",
     "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 1.838885011260547
-      },
       {
         "feature": "z2_temp_c",
         "shap": 1.7425155063742677
@@ -305,6 +301,10 @@
       {
         "feature": "slow_t2_temp_c_varratio",
         "shap": 1.0835829590222283
+      },
+      {
+        "feature": "slow_t3_temp_c_cusum_alarms56",
+        "shap": 0.32115985460212215
       }
     ],
     "imputed": {
@@ -340,7 +340,7 @@
   {
     "station_id": "43117",
     "time_utc": "2025-12-31T21:00:00+00:00",
-    "variable": "temp_c",
+    "variable": "all",
     "observed": {
       "temp_c": null,
       "mslp_hpa": null,
@@ -349,28 +349,9 @@
     "p_fault": 1.0,
     "severity": "critical",
     "root_cause": "F7",
-    "explanation": "Fusion model flagged this row (root cause: F7); no single dominant positive factor. Objected: T0 rules. Did not object: T1 station history (temp_c 0.0 sigma), T2 cross-variable (temp_c 0.0 sigma), T3 neighbours (temp_c 0.0 sigma), slow-signal (24-step mean 0.0 sigma).",
-    "top_factors": [
-      {
-        "feature": "z2_temp_c",
-        "shap": 2.0584280387320804
-      },
-      {
-        "feature": "z2_rh_pct",
-        "shap": 1.4227195631076048
-      },
-      {
-        "feature": "z1_rh_pct",
-        "shap": 0.7469994587392225
-      }
-    ],
-    "imputed": {
-      "value": 19.4,
-      "low": 19.399,
-      "high": 19.401,
-      "method": "blend_t2_t3",
-      "neighbour": 19.4
-    },
+    "explanation": "No observation received for 4 steps (all three variables); gap rule. Root cause: F7. Objected: T0 rules. Abstained (no observation): T1 station history, T2 cross-variable, T3 neighbours, slow-signal.",
+    "top_factors": [],
+    "imputed": null,
     "tier_scores": {
       "t0": [],
       "z1_temp_c": null,
@@ -385,10 +366,10 @@
     },
     "witness": {
       "T0": true,
-      "T1": false,
-      "T2": false,
-      "T3": false,
-      "slow": false
+      "T1": null,
+      "T2": null,
+      "T3": null,
+      "slow": null
     },
     "model_version": "fusion-3h-0.1"
   },
@@ -404,19 +385,19 @@
     "p_fault": 0.9976580936547994,
     "severity": "critical",
     "root_cause": "F8",
-    "explanation": "a soft step-limit or frozen-value rule fired; rh_pct is inconsistent with the station's other variables (z >10); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.28). Root cause: F8. Objected: T0 rules, T1 station history (rh_pct >10 sigma), T2 cross-variable (rh_pct >10 sigma), T3 neighbours (rh_pct >10 sigma), slow-signal (24-step mean >10 sigma). Did not object: none.",
+    "explanation": "rh_pct flagged: rh_pct is inconsistent with the station's other variables (z >10); t2_rh_pct_varratio shows a sustained bias, drift or variance change (4.53); t1_rh_pct_rmean24 shows a sustained bias, drift or variance change (>10). Root cause: F8. Objected: T0 rules, T1 station history (rh_pct >10 sigma), T2 cross-variable (rh_pct >10 sigma), T3 neighbours (rh_pct >10 sigma), slow-signal (rh_pct 24-step mean >10 sigma). Did not object: none.",
     "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 1.9529006020528168
-      },
       {
         "feature": "z2_rh_pct",
         "shap": 1.0484833348734939
       },
       {
-        "feature": "slow_t2_temp_c_varratio",
-        "shap": 0.8818275414063723
+        "feature": "slow_t2_rh_pct_varratio",
+        "shap": 0.2661077030390252
+      },
+      {
+        "feature": "slow_t1_rh_pct_rmean24",
+        "shap": 0.1295171569467664
       }
     ],
     "imputed": {
@@ -452,7 +433,7 @@
   {
     "station_id": "43117",
     "time_utc": "2023-12-13T12:00:00+00:00",
-    "variable": "temp_c",
+    "variable": "mslp_hpa",
     "observed": {
       "temp_c": 28.0,
       "mslp_hpa": 991.9858409262581,
@@ -461,27 +442,27 @@
     "p_fault": 0.9965650683432834,
     "severity": "critical",
     "root_cause": "F9",
-    "explanation": "a soft step-limit or frozen-value rule fired; mslp_hpa_roll8_std=11.69 contributed; t3_mslp_hpa_rmean8 shows a sustained bias, drift or variance change (-6.50). Root cause: F9. Objected: T0 rules, T2 cross-variable (mslp_hpa >10 sigma), T3 neighbours (mslp_hpa >10 sigma), slow-signal (24-step mean 4.5 sigma). Did not object: T1 station history (rh_pct 1.7 sigma).",
+    "explanation": "mslp_hpa flagged: t3_mslp_hpa_rmean8 shows a sustained bias, drift or variance change (-6.50); t2_mslp_hpa_varratio shows a sustained bias, drift or variance change (6.66); neighbours mostly disagree on mslp_hpa. Root cause: F9. Objected: T0 rules, T2 cross-variable (mslp_hpa >10 sigma), T3 neighbours (mslp_hpa >10 sigma), slow-signal (mslp_hpa 24-step mean 4.5 sigma). Did not object: T1 station history (mslp_hpa 1.0 sigma).",
     "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.892042953466188
-      },
-      {
-        "feature": "mslp_hpa_roll8_std",
-        "shap": 0.872617771557392
-      },
       {
         "feature": "slow_t3_mslp_hpa_rmean8",
         "shap": 0.5216071806453677
+      },
+      {
+        "feature": "slow_t2_mslp_hpa_varratio",
+        "shap": 0.40142242271420936
+      },
+      {
+        "feature": "neighbour_agreement_mslp_hpa",
+        "shap": 0.3903363122929115
       }
     ],
     "imputed": {
-      "value": 28.716,
-      "low": 28.156,
-      "high": 29.275,
+      "value": 1009.023,
+      "low": 1007.636,
+      "high": 1010.41,
       "method": "blend_t2_t3",
-      "neighbour": 28.695
+      "neighbour": 1008.753
     },
     "tier_scores": {
       "t0": [
@@ -509,7 +490,7 @@
   {
     "station_id": "43117",
     "time_utc": "2025-12-30T00:00:00+00:00",
-    "variable": "temp_c",
+    "variable": "all",
     "observed": {
       "temp_c": null,
       "mslp_hpa": null,
@@ -518,28 +499,9 @@
     "p_fault": 1.0,
     "severity": "critical",
     "root_cause": "F7",
-    "explanation": "Fusion model flagged this row (root cause: F7); no single dominant positive factor. Objected: T0 rules. Did not object: T1 station history (temp_c 0.0 sigma), T2 cross-variable (temp_c 0.0 sigma), T3 neighbours (temp_c 0.0 sigma), slow-signal (24-step mean 0.0 sigma).",
-    "top_factors": [
-      {
-        "feature": "z2_temp_c",
-        "shap": 2.0473502550684146
-      },
-      {
-        "feature": "z2_rh_pct",
-        "shap": 1.4248911722022135
-      },
-      {
-        "feature": "z1_rh_pct",
-        "shap": 0.7475534326901603
-      }
-    ],
-    "imputed": {
-      "value": 17.3,
-      "low": 17.299,
-      "high": 17.301,
-      "method": "blend_t2_t3",
-      "neighbour": 17.3
-    },
+    "explanation": "No observation received for 5 steps (all three variables); gap rule. Root cause: F7. Objected: T0 rules. Abstained (no observation): T1 station history, T2 cross-variable, T3 neighbours, slow-signal.",
+    "top_factors": [],
+    "imputed": null,
     "tier_scores": {
       "t0": [],
       "z1_temp_c": null,
@@ -554,10 +516,10 @@
     },
     "witness": {
       "T0": true,
-      "T1": false,
-      "T2": false,
-      "T3": false,
-      "slow": false
+      "T1": null,
+      "T2": null,
+      "T3": null,
+      "slow": null
     },
     "model_version": "fusion-3h-0.1"
   }

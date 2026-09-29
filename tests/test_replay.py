@@ -20,6 +20,7 @@ def test_replay_matches_scored_stream():
         assert seg['counts']['alerts'] == sum(x['p'] >= replay['alert_threshold'] for x in r)
         empty = [x for x in r if all(x[k] is None for k in VK)]
         assert not empty or (seg.get('event', {}).get('cls') == 'F7' and all(x['f'] == 'F7' for x in empty))
+        assert all(x['e'].startswith('No observation received') and 'sigma' not in x['e'] for x in empty)
         if seg['kind'] in ('heatwave', 'monsoon'):
             assert all(x['f'] is None for x in r)
     classes = {s['event']['cls'] for s in segs if 'event' in s}

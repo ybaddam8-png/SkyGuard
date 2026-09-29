@@ -14,6 +14,7 @@ import shap
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from skyguard_inject import inject_faults, VARS, CLASSES
+from health import LAM, f10_series, tau_eff
 
 ROOT=Path(__file__).resolve().parents[1]; OUT=ROOT/'outputs'; BENCH=ROOT/'data/bench'; CFG=yaml.safe_load(open(ROOT/'config/cadence_3h.yaml'))
 OUT.mkdir(exist_ok=True); (OUT/'figures').mkdir(exist_ok=True); BENCH.mkdir(exist_ok=True)
@@ -528,20 +529,35 @@ def tier_of(f):
  return 'raw/other'
 def is_slow(f): return f.startswith('slow_') and not f.endswith(('_res','_varratio'))
 WIT_Z=3.0  # |healthy-baselined residual| above which a tier "objects"; fixed, not tuned
-def witnesses(i):
- # returns the witness sentence and the per-tier flags it was built from (True objected, False quiet, None abstained / not quoted)
+obs_val={v:Xraw[v].to_numpy(dtype=float) for v in VARS}
+def _run_len(miss):  # consecutive missing steps up to and including each row, per station
+ s=pd.Series(np.asarray(miss,int)); return s.groupby([Xraw.station_id.astype(str).values,(s==0).cumsum().values]).cumsum().to_numpy()
+miss_run={v:_run_len(np.isnan(obs_val[v])) for v in VARS}; gap_run=_run_len(gap_rule)
+def var_of(f): return next((v for v in VARS if v in f),None)
+var_cols={v:[j for j,f in enumerate(base_cols) if var_of(f)==v] for v in VARS}
+# a factor is quoted only when a template turns it into a statement; raw values such as "absdiff1=0.00 contributed" are not
+templated=np.array([any(cond(f) for cond,_ in FEATURE_TEMPLATES) for f in base_cols])
+flag_feature=np.array([f.endswith(('_missing','_zero4')) for f in base_cols])
+def witnesses(i,v):
+ # witness sentence for the flagged variable v and the per-tier flags it was built from (True objected, False quiet, None abstained)
  obj=[]; quiet=[]; abst=[]; flags={}
  flags['T0']=bool(X.at[i,'t0_hard']>0 or X.at[i,'t0_soft']>0 or gap_rule[i]); (obj if flags['T0'] else quiet).append('T0 rules')
- for tier,name in (('t1','T1 station history'),('t2','T2 cross-variable'),('t3','T3 neighbours')):
-  if tier=='t3' and all(X.at[i,'neighbour_confidence_'+v]==0 for v in VARS): abst.append(name); flags['T3']=None; continue
-  z={v:abs(float(X.at[i,f'slow_{tier}_{v}_res'])) for v in VARS}; v=max(z,key=z.get)
-  flags[tier.upper()]=bool(z[v]>WIT_Z); (obj if flags[tier.upper()] else quiet).append(f"{name} ({v} {sg(z[v])} sigma)")
+ names=(('t1','T1 station history'),('t2','T2 cross-variable'),('t3','T3 neighbours'))
+ if v is None or np.isnan(obs_val[v][i]):  # no observation: the residual tiers have nothing to judge, and no sigma is quoted
+  for tier,name in names: abst.append(name); flags[tier.upper()]=None
+  flags['slow']=None; abst.append('slow-signal')
+  return 'Objected: '+(', '.join(obj) or 'none')+'. Abstained (no observation): '+', '.join(abst)+'.',flags
+ for tier,name in names:
+  if tier=='t3' and X.at[i,'neighbour_confidence_'+v]==0: abst.append(name); flags['T3']=None; continue
+  z=abs(float(X.at[i,f'slow_{tier}_{v}_res']))
+  flags[tier.upper()]=bool(z>WIT_Z); (obj if flags[tier.upper()] else quiet).append(f"{name} ({v} {sg(z)} sigma)")
  flags['slow']=None
  if X.at[i,'t0_hard']==0:  # a sentinel or hard fail dominates any rolling mean, so the slow-signal witness is not quoted then
-  zs=max(abs(float(X.at[i,f'slow_{t}_{v}_rmean24'])) for t in ('t1','t3') for v in VARS)
-  flags['slow']=bool(zs>WIT_Z); (obj if flags['slow'] else quiet).append(f"slow-signal (24-step mean {sg(zs)} sigma)")
+  zs=max(abs(float(X.at[i,f'slow_{t}_{v}_rmean24'])) for t in ('t1','t3'))
+  flags['slow']=bool(zs>WIT_Z); (obj if flags['slow'] else quiet).append(f"slow-signal ({v} 24-step mean {sg(zs)} sigma)")
  return 'Objected: '+(', '.join(obj) or 'none')+'. Did not object: '+(', '.join(quiet) or 'none')+('. Abstained: '+', '.join(abst) if abst else '')+'.',flags
 def explain_rows(idxs):
+ # returns per row: (sentence, top-3 positive SHAP factors of the binary head, witness flags, factors quoted in the sentence, flagged variable)
  out={}
  idxs=np.asarray(idxs)
  for fi in np.unique(fold_of_row[idxs]):
@@ -553,10 +569,24 @@ def explain_rows(idxs):
    order=np.argsort(sv[k])[::-1]; top=[]
    for oi in order:
     if sv[k,oi]<=0 or len(top)>=3: break
-    f=base_cols[oi]; top.append({'feature':f,'shap':float(sv[k,oi]),'_v':float(vals[k,oi])})
-   phrases=[describe_feature(t['feature'],v) for t in top if math.isfinite(v:=t.pop('_v'))]  # a missing observation has no value to quote (F7 gaps)
-   explanation=('; '.join(phrases)+f'. Root cause: {all_cls[i]}.') if phrases else (f'Fusion model flagged this row (root cause: {all_cls[i]}); no single dominant positive factor.' if all_pred[i]>=.5 else 'Not flagged; no factor pushed P(fault) up.')
-   wtext,wflags=witnesses(i); out[i]=(explanation+' '+wtext,top,wflags)
+    top.append({'feature':base_cols[oi],'shap':float(sv[k,oi])})
+   # flagged variable = the variable whose features carry the largest positive SHAP mass
+   mass={v:float(np.clip(sv[k,var_cols[v]],0,None).sum()) for v in VARS}; v=max(mass,key=mass.get) if max(mass.values())>0 else None
+   flagged=all_pred[i]>=.5; rc=f' Root cause: {all_cls[i]}.' if flagged else ''; facts=[]
+   if gap_rule[i]:
+    v=None; n=int(gap_run[i]); text=f"No observation received for {n} step{'s' if n>1 else ''} (all three variables); gap rule.{rc}"
+   elif v is not None and np.isnan(obs_val[v][i]):
+    n=int(miss_run[v][i]); text=f"No {v} observation received for {n} step{'s' if n>1 else ''}.{rc}"
+   elif v is None:
+    text=f'Fusion model flagged this row (root cause: {all_cls[i]}); no variable carries positive evidence.' if flagged else 'Not flagged; no factor pushed P(fault) up.'
+   else:
+    for j in sorted(var_cols[v],key=lambda j:-sv[k,j]):
+     if len(facts)>=3 or sv[k,j]<=0: break
+     if templated[j] and math.isfinite(vals[k,j]) and not (flag_feature[j] and vals[k,j]<=0): facts.append((j,vals[k,j]))
+    phrases=[describe_feature(base_cols[j],x) for j,x in facts]; body='; '.join(phrases) if phrases else 'no single dominant factor'
+    text=(f'{v} flagged: {body}.{rc}' if flagged else f'Not flagged. Strongest evidence on {v}: {body}.')
+    facts=[{'feature':base_cols[j],'shap':float(sv[k,j])} for j,_ in facts]
+   wtext,wflags=witnesses(i,v); out[i]=(text+' '+wtext,top,wflags,facts,v)
  return out
 def impute_value(sid,t,v):
  sid=str(sid); month=int(t.month); hour=int(t.hour)
@@ -604,47 +634,42 @@ eqlines=['', '## Explanation quality (top SHAP factor of the binary head, flagge
 for c,r in metrics['explanation_quality'].items(): eqlines.append(f"| {c} | {r['n_alerts']:,} | {r.get('n_explained',0)} | {r.get('expected_tier') or '-'} | {fmt(r.get('share_top_factor_from_expected_tier'))} | {r.get('top_factor_tier_distribution','')} |")
 with open(OUT/'benchmark_report.md','a') as f: f.write('\n'.join(eqlines)+'\n')
 # ---------- scored stream: every station-step, out-of-fold (each row scored by the fold model that held its station out) ----------
-def _primary_var(rc,i):
- if rc=='weather': return None
- best_v,best_z=VARS[0],-1.0
- for v in VARS:
-  z=max(abs(float(X.at[i,f'z1_{v}'])),abs(float(X.at[i,f'z2_{v}'])),abs(float(X.at[i,f'z3_{v}'])))
-  if z>best_z: best_z=z; best_v=v
- return best_v
 all_idx=np.arange(len(sample_out)); expl_all=explain_rows(all_idx)
 full=sample_out.copy(); full['cluster']=clean.cluster.values; full['fold']=fold_of_row+1; full['label']=row_classes; full['native_gap']=native_gap; full['protected_window']=window_name
-full['explanation']=[expl_all[i][0] for i in all_idx]; full['top_factors']=[expl_all[i][1] for i in all_idx]
+full['explanation']=[expl_all[i][0] for i in all_idx]; full['top_factors']=[expl_all[i][3] for i in all_idx]; full['flagged_var']=[expl_all[i][4] for i in all_idx]
 for k in ('T0','T1','T2','T3','slow'): full['w_'+k]=pd.array([expl_all[i][2].get(k) for i in all_idx],dtype='boolean')
 full['tier_scores']=[tier_scores_for(i) for i in all_idx]
-full['primary_var']=[_primary_var(rc,i) for rc,i in zip(full.root_cause,all_idx)]
+full['primary_var']=[None if rc=='weather' else fv for rc,fv in zip(full.root_cause,full.flagged_var)]
 for v in VARS:
  imp=[impute_value(s,t,v) for s,t in zip(full.station_id,full.time_utc)]
  for k,col in (('value',f'imp_{v}'),('low',f'imp_{v}_lo'),('high',f'imp_{v}_hi'),('method',f'imp_{v}_method'),('neighbour',f'nb_{v}')): full[col]=[d.get(k) for d in imp]
+ # T3 neighbour residual of the scored (injected) stream and of the clean stream, for the F-10 health diagnosis
+ full[f'r3_{v}']=_residuals('t3',v,Xraw,X); full[f'r3c_{v}']=_residuals('t3',v,clean,Xclean)
 full.to_parquet(OUT/'scored_stream.parquet',index=False)
 print('scored_stream.parquet',len(full),'rows',full.station_id.nunique(),'stations',full.time_utc.min(),'->',full.time_utc.max(),f"{(OUT/'scored_stream.parquet').stat().st_size/1e6:.1f} MB",flush=True)
 
 tns=full.time_utc.dt.tz_convert(None).to_numpy()
 def _n(t): t=pd.Timestamp(t); return (t.tz_convert(None) if t.tz else t).to_datetime64()
-# ---------- sensor health (spec F-10) on the T3 residual of the scored (injected) stream ----------
-LAM=1-(1-.02)**3  # spec lambda 0.02 is per hour; the same decay per 3-hourly step
+# ---------- sensor health (spec F-10, src/health.py) on the T3 residual of the scored (injected) stream ----------
+HEALTH_TAU='spec'  # 'spec' = spec tolerance; 'eff' = max(spec tolerance, 3 x healthy-period std of the EWMA bias), see README
 HEALTH_METHOD=('H = 100*(1 - min(1, 0.5*|b|/tau + 0.3*f30 + 0.2*max(0, sigma_r/sigma_ref - 1))) per station-variable, as of the sensor\'s last observation; '
- f'b = EWMA (lambda {LAM:.4f} per 3-h step) of the T3 neighbour residual; tau = 0.5 C / 5 % RH / 0.5 hPa; f30 = share of observed steps with P(fault) >= 0.5 in the last 30 days; '
- 'sigma_r = residual std over the last 30 days; sigma_ref = healthy-period residual std. P(fault) is out-of-fold; the stream contains injected faults.')
+ f'b = EWMA (lambda {LAM:.4f} per 3-h step) of the T3 neighbour residual; '
+ +('tau = 0.5 C / 5 % RH / 0.5 hPa; ' if HEALTH_TAU=='spec' else 'tau = max(0.5 C / 5 % RH / 0.5 hPa, 3 x the healthy-period std of the EWMA bias) (deviation from the spec); ')
+ +'f30 = share of observed steps with P(fault) >= 0.5 in the last 30 days; sigma_r = residual std over the last 30 days; sigma_ref = healthy-period residual std. P(fault) is out-of-fold; the stream contains injected faults.')
 health=[]
 for sid in stations.station_id:
- pos=st_pos.get(sid,np.array([],int)); times=tns[pos]
+ pos=st_pos.get(sid,np.array([],int)); times=pd.DatetimeIndex(tns[pos])
  for v in VARS:
-  r=_residuals('t3',v,Xraw.iloc[pos],X.iloc[pos]); ok=~np.isnan(r); obs=full[v].notna().to_numpy()[pos]
+  r=full[f'r3_{v}'].to_numpy()[pos]; ok=~np.isnan(r); obs=full[v].notna().to_numpy()[pos]
   h={'s':sid,'v':v,'H':None,'status':'no data','as_of':None}
   if not obs.any(): h['reason']='no observations'; health.append(h); continue
   if not ok.any(): h['reason']='no neighbour residual'; health.append(h); continue
-  as_of=times[ok][-1]; win=(times>as_of-np.timedelta64(30,'D'))&(times<=as_of)
-  b=float(pd.Series(r[ok]).ewm(alpha=LAM,adjust=False).mean().iloc[-1]); rr=r[win&ok]
-  sr=float(np.std(rr,ddof=1)) if len(rr)>1 else float('nan'); sref=float(healthy_t3[v].at[sid,'std']); f30=float((all_pred[pos][win&obs]>=.5).mean())
-  pen=.5*abs(b)/TOL[v]+.3*f30+(.2*max(0.,sr/sref-1) if math.isfinite(sr) and sref>0 else 0.)
-  H=100*(1-min(1.,pen))
-  h.update({'H':round(H,1),'status':'Healthy' if H>=80 else 'Watch' if H>=60 else 'Degrading' if H>=40 else 'Failed','as_of':pd.Timestamp(as_of).strftime('%Y-%m-%dT%H:%MZ'),
-   'b':round(b,3),'f30':round(f30,3),'sigma_r':_safe_round(sr),'sigma_ref':round(sref,3),'n30':int((win&obs).sum())})
+  sref=float(healthy_t3[v].at[sid,'std']); te=tau_eff(v,full[f'r3c_{v}'].to_numpy()[pos]); tau=TOL[v] if HEALTH_TAU=='spec' else te
+  last=np.flatnonzero(ok)[-1]; alert=all_pred[pos]>=.5
+  s=f10_series(r,alert,obs,times,sref,tau).iloc[last]; s_spec=f10_series(r,alert,obs,times,sref,TOL[v]).iloc[last]
+  H=float(s.H)
+  h.update({'H':round(H,1),'status':'Healthy' if H>=80 else 'Watch' if H>=60 else 'Degrading' if H>=40 else 'Failed','as_of':times[last].strftime('%Y-%m-%dT%H:%MZ'),
+   'b':round(float(s.b),3),'f30':round(float(s.f30),3),'sigma_r':_safe_round(s.sigma_r),'sigma_ref':round(sref,3),'n30':int(s.n30),'tau':round(tau,3),'tau_eff':round(te,3),'H_spec':round(float(s_spec.H),1)})
   health.append(h)
 
 # ---------- curated replay for the dashboard: three segments cut from the scored stream, rows unchanged ----------
@@ -722,8 +747,7 @@ alert_idx=alert_rows.index.to_numpy()
 expl_alert=explain_rows(alert_idx)
 alerts=[]
 for i in alert_idx:
- r=sample_out.loc[i]; v=_primary_var(r.root_cause,i); imputed=impute_value(r.station_id,r.time_utc,v) if v else None
- explanation,top_factors,wflags=expl_alert[i]
+ r=sample_out.loc[i]; explanation,_,wflags,top_factors,fv=expl_alert[i]; v=None if r.root_cause=='weather' else fv; imputed=impute_value(r.station_id,r.time_utc,v) if v else None
  alerts.append({'station_id':r.station_id,'time_utc':r.time_utc.isoformat(),'variable':v or 'all','observed':{vv:None if pd.isna(r[vv]) else float(r[vv]) for vv in VARS},'p_fault':float(r.p_fault),'severity':r.severity,'root_cause':r.root_cause,'explanation':explanation,'top_factors':top_factors,'imputed':imputed,'tier_scores':tier_scores_for(i),'witness':wflags,'model_version':'fusion-3h-0.1'})
 json.dump(alerts,open(OUT/'alerts_examples.json','w'),indent=2,allow_nan=False)
 print('DONE',len(labels),'labels',metrics['metrics']['f1'])
