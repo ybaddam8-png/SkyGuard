@@ -443,3 +443,21 @@ stream; the weights were not changed.
    critical). Screenshot 04 re-taken. 01, 02, 05 and 06 are unchanged.
 Verified: `make all` (9 passed), `pnpm run check`, `pnpm run build`, and 0 console errors in
 Playwright.
+
+## fix/heatwave-figure — protected-window figure reconciled with metrics.json
+
+The old `heatwave_no_injection.png` title said "75 alerts overlaid". That 75 counted P(fault) >= 0.5 over
+all three protected windows (both clusters) and included native-gap rows. The deterministic gap rule
+sets those rows to 1.0, and they have no temperature, so their markers were invisible: 65 of the 75
+were native-gap rows and 10 were observed rows. metrics.json excludes native gaps. Per window
+(observations = window rows minus native gaps):
+heatwave_a: 9 cluster-a stations, 2,421 observations, 9 alerts, 3.7 per 1,000.
+biparjoy_a: the same 9 stations, 308 observations, 1 alert, 3.2 per 1,000.
+monsoon_c: 6 cluster-c stations, 311 observations, 0 alerts, 0.0 per 1,000.
+The replay's "5 alerts in 815 observations" is segment A only: 3 of the 9 heatwave stations
+(42181 272, 42348 272, 42101 271 observations), chosen by coverage. All 5 alerts are at 42101; the
+other 4 heatwave alerts are at 42103 (1) and 42111 (3), which are not in the replay.
+The figure now has one panel per window with the metrics.json mask, and an assert in
+`run_step2.py` fails the run if its counts ever diverge from metrics.json. The dashboard card is
+renamed "Protected windows (no injection)", and screenshot 05 is re-taken. metrics.json is unchanged
+apart from the latency timer. `make all` (9 passed), `pnpm run check` and `pnpm run build` pass.
