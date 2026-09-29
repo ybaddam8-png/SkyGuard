@@ -278,3 +278,17 @@ change in any variable 54.7 (1,308 rows, 2.44x), bottom 0.5 % 3-step change 44.8
 1.99x). None exceeds 3x clean. Level extremes are alerted less than ordinary rows; fast changes
 about 2x. With calendar features the change rows are 45.4 / 40.6. Removing a tier does not bring
 change-row alerts down much (no T2: 46.0 top change); no single tier drives them.
+
+## fix/detectability — Stage B: baselines on the current benchmark
+
+Same evaluation definitions for every detector (pre-detectable F3 rows and native gaps excluded),
+fold mean ± std of binary F1: fusion 0.694 ± 0.053; fusion without the F7 gap rule 0.694 ± 0.053;
+T0 rules incl. gap rule 0.491 ± 0.060; T0 without gap rule 0.474 ± 0.061; Isolation Forest
+(contamination = training-fold prevalence) 0.427 ± 0.090; always-fault 0.127 ± 0.010.
+
+F7, both ways: injected-gap recall 1.000 with and without the gap rule; precision 0.994 with native
+gaps excluded, 0.014 when native gaps count as negatives (all 11,219 native-gap rows are called F7).
+The gap rule changes nothing: because native gaps carry weight 0, the learned model maps
+`is_missing` to F7 by itself. F7's 0.99 F1 is therefore definitional either way: it rests on
+excluding native gaps from scoring. Treating native gaps as negatives (fix/slow-faults) gave F7
+F1 0.104. `make all` and pytest pass.

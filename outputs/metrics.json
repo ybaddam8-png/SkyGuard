@@ -137,6 +137,28 @@
     ]
   },
   "metrics": {
+    "f1_no_gap_rule": {
+      "mean": 0.6940904266851053,
+      "std": 0.0527164692560676,
+      "folds": [
+        0.6313337216074548,
+        0.6620183486238532,
+        0.7698701298701298,
+        0.7142235754675946,
+        0.6930063578564941
+      ]
+    },
+    "t0_no_gap_rule_f1": {
+      "mean": 0.47348471626328925,
+      "std": 0.061394750247534144,
+      "folds": [
+        0.452431289640592,
+        0.3872595395774204,
+        0.5495537811178958,
+        0.5106035889070146,
+        0.46757538207352334
+      ]
+    },
     "with_calendar_f1": {
       "mean": 0.6939112500256426,
       "std": 0.044344540072318785,
@@ -1715,6 +1737,22 @@
     },
     "with_calendar_alerts_per_1000_clean": 21.59704461494743
   },
+  "f7_check": {
+    "with_gap_rule": {
+      "injected_gap_recall": 1.0,
+      "precision_excluding_native_gaps": 0.9938650306748467,
+      "precision_including_native_gaps": 0.014232999472851872,
+      "native_gap_rows_called_f7": 11219,
+      "native_gap_rows": 11219
+    },
+    "without_gap_rule": {
+      "injected_gap_recall": 1.0,
+      "precision_excluding_native_gaps": 0.9938650306748467,
+      "precision_including_native_gaps": 0.014232999472851872,
+      "native_gap_rows_called_f7": 11219,
+      "native_gap_rows": 11219
+    }
+  },
   "natural_extremes": {
     "no_calendar": {
       "temp_top0.5pct": {
@@ -2044,8 +2082,8 @@
     ]
   },
   "latency_ms": {
-    "p50": 1.3017484961892478,
-    "p95": 1.6383078909711908,
+    "p50": 1.4035464919288643,
+    "p95": 1.7265005961235147,
     "n_timed": 500
   },
   "false_alarms_per_1000_by_window": {

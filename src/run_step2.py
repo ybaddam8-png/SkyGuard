@@ -223,7 +223,7 @@ def ece(probs,truth,n_bins=10):
   if m.sum()==0: continue
   e+=(m.sum()/total)*abs(probs[m].mean()-truth[m].mean())
  return float(e)
-cal_flag=np.zeros(len(y),bool); abl_flag={n:np.zeros(len(y),bool) for n in blocks}; abl_cls={n:np.full(len(y),'weather',object) for n in blocks}
+all_pred_raw=np.zeros(len(y)); all_cls_raw=np.full(len(y),'weather',object); cal_flag=np.zeros(len(y),bool); abl_flag={n:np.zeros(len(y),bool) for n in blocks}; abl_cls={n:np.full(len(y),'weather',object) for n in blocks}
 # event table (one row per injected event) and per-fold test/train event counts, printed before any training
 time_ns=Xraw.time_utc.map(lambda t:t.value).to_numpy(); events=[]
 for (sid,var,cls,a,b),_ in labels.groupby(['station_id','variable','class','start','end']):
@@ -248,22 +248,23 @@ for fi,(tr,te) in enumerate(folds):
  model=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi)
  w_tr=weight[tr]; s=scored[te]; ts=te[s]
  model.fit(X.iloc[tr][base_cols],y[tr],sample_weight=w_tr); p_train=model.predict_proba(X.iloc[tr][base_cols])[:,1]; p=model.predict_proba(X.iloc[te][base_cols])[:,1]
+ p_raw=p; all_pred_raw[te]=p_raw  # model output before the deterministic F7 gap rule
  p=np.where(gap_rule[te],1.0,p); p_train=np.where(gap_rule[tr],1.0,p_train); pred=(p>=.5).astype(int); all_pred[te]=p
  if fi==0: fold0_model=model; fold0_te=te
  p_cal=IsotonicRegression(out_of_bounds='clip').fit(p_train[w_tr>0],y[tr][w_tr>0]).predict(p)
  # multiclass over fault classes, excluding weather if no data in train
  mc=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi)
  rc_sel=tr[((y[tr]==1)|((row_classes[tr]=='weather')&protected[tr]))&(w_tr>0)]  # spec section 8: injector-labelled rows + protected-window weather only
- mc.fit(X.iloc[rc_sel][base_cols],row_classes[rc_sel]); cp=np.where(gap_rule[te],'F7',np.where(p>=.5,mc.predict(X.iloc[te][base_cols]),'weather')); all_cls[te]=cp  # root cause only given a fault verdict
+ mc.fit(X.iloc[rc_sel][base_cols],row_classes[rc_sel]); mc_pred=mc.predict(X.iloc[te][base_cols]); cp=np.where(gap_rule[te],'F7',np.where(p>=.5,mc_pred,'weather')); all_cls[te]=cp; all_cls_raw[te]=np.where(p_raw>=.5,mc_pred,'weather')  # root cause only given a fault verdict
  print('fold',fi+1,'multiclass train rows',pd.Series(row_classes[rc_sel]).value_counts().to_dict(),flush=True)
  # baselines
- t0=gap_rule[te]|(X.iloc[te]['t0_hard'].to_numpy()>0)|(X.iloc[te]['t0_soft'].to_numpy()>0)|(X.iloc[te]['z_max'].to_numpy()>6)
+ t0_nogap=(X.iloc[te]['t0_hard'].to_numpy()>0)|(X.iloc[te]['t0_soft'].to_numpy()>0)|(X.iloc[te]['z_max'].to_numpy()>6); t0=gap_rule[te]|(X.iloc[te]['t0_hard'].to_numpy()>0)|(X.iloc[te]['t0_soft'].to_numpy()>0)|(X.iloc[te]['z_max'].to_numpy()>6)
  train_prevalence=float(np.clip(y[tr].mean(),1e-3,0.5))
  iso=IsolationForest(n_estimators=100,random_state=SEED+fi,contamination=train_prevalence,n_jobs=-1).fit(X.iloc[tr][[c for c in base_cols if c not in ['t0_hard','t0_soft']].copy()])
  ip=iso.predict(X.iloc[te][[c for c in base_cols if c not in ['t0_hard','t0_soft']]])==-1
  trivial=np.ones(len(te),bool)
  def met(a,b): return {'precision':float(precision_score(a,b,zero_division=0)),'recall':float(recall_score(a,b,zero_division=0)),'f1':float(f1_score(a,b,zero_division=0))}
- fm=met(y[ts],pred[s]); fm.update({'fold':fi+1,'n_test':int(len(ts)),'t0_f1':met(y[ts],t0[s])['f1'],'iforest_f1':met(y[ts],ip[s])['f1'],'trivial_f1':met(y[ts],trivial[s])['f1'],'ece_raw':ece(p[s],y[ts]),'ece_calibrated':ece(p_cal[s],y[ts])}); fold_metrics.append(fm)
+ fm=met(y[ts],pred[s]); fm.update({'fold':fi+1,'n_test':int(len(ts)),'t0_f1':met(y[ts],t0[s])['f1'],'t0_no_gap_rule_f1':met(y[ts],t0_nogap[s])['f1'],'f1_no_gap_rule':met(y[ts],(p_raw>=.5)[s])['f1'],'iforest_f1':met(y[ts],ip[s])['f1'],'trivial_f1':met(y[ts],trivial[s])['f1'],'ece_raw':ece(p[s],y[ts]),'ece_calibrated':ece(p_cal[s],y[ts])}); fold_metrics.append(fm)
  # per-fold macro-F1 across F1-F9
  fold_class_f1=[f1_score((row_classes[ts]==cls).astype(int),(cp[s]==cls).astype(int),zero_division=0) for cls in CLASSES]
  fold_metrics[-1]['macro_f1']=float(np.mean(fold_class_f1))
@@ -286,7 +287,7 @@ lat_rows=fold0_te[:500]; lat_times=[]
 for idx in lat_rows:
  row=X.iloc[[idx]][base_cols]; t_start=time.perf_counter(); fold0_model.predict_proba(row); lat_times.append((time.perf_counter()-t_start)*1000)
 # per-class metrics across folds using out-of-fold predictions (reported as one OOF estimate + fold spread for binary)
-metric_names=['with_calendar_f1','precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']
+metric_names=['f1_no_gap_rule','t0_no_gap_rule_f1','with_calendar_f1','precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']
 metrics={'config':CFG,'dataset':{'rows':int(len(inj)),'stations':int(inj.station_id.nunique()),'labels':int(len(labels)),'protected_rows':int(protected.sum())},'cv':{'folds':5,'grouped_by':'station','fold_station_counts':[int(len(np.unique(groups[te]))) for _,te in folds]},'metrics':{}}
 for n in metric_names:
  vals=[r[n] for r in fold_metrics if n in r]; metrics['metrics'][n]={'mean':float(np.mean(vals)),'std':float(np.std(vals,ddof=1) if len(vals)>1 else 0),'folds':vals}
@@ -338,6 +339,11 @@ def window_rates(flag):
  return out
 metrics['calendar_check']={'fusion_excludes':CAL_COLS,'placebo_rule':'each protected window shifted +182 days, applied in both clusters; faults are injected there as anywhere else',
  'no_calendar':window_rates(all_pred>=.5),'with_calendar':window_rates(cal_flag),'with_calendar_alerts_per_1000_clean':event_eval(cal_flag,all_cls)['alerts_per_1000_outside_events_and_protected']}
+inj_f7=row_classes=='F7'
+def f7_check(cl):
+ pr=cl=='F7'; tp=int((pr&inj_f7).sum())
+ return {'injected_gap_recall':float(pr[inj_f7].mean()),'precision_excluding_native_gaps':float(tp/max(int(pr[scored].sum()),1)),'precision_including_native_gaps':float(tp/max(int(pr[scored|native_gap].sum()),1)),'native_gap_rows_called_f7':int(pr[native_gap].sum()),'native_gap_rows':int(native_gap.sum())}
+metrics['f7_check']={'with_gap_rule':f7_check(all_cls),'without_gap_rule':f7_check(all_cls_raw)}
 # natural extremes on the clean base (rows with no injected fault, not native gaps; inside and outside protected windows).
 # Per-station thresholds on clean values; nothing is tuned on these rows.
 cb=clean.groupby('station_id'); clean_base=(row_classes=='weather')&~native_gap
@@ -404,6 +410,12 @@ lines += ['', '| Variant | '+' | '.join(CLASSES)+' |','|---|'+'---:|'*len(CLASSE
 for n,r in metrics['per_class_f1_by_variant'].items(): lines.append(f"| {n} F1 | "+' | '.join(f'{r[c]:.3f}' for c in CLASSES)+' |')
 for n,r in ev.items(): lines.append(f"| {n} event recall | "+' | '.join(fmt(r['per_class'][c]['recall']) for c in CLASSES)+' |')
 for n,r in ev.items(): lines.append(f"| {n} class-correct event recall | "+' | '.join(fmt(r['per_class'][c]['recall_class_correct']) for c in CLASSES)+' |')
+M=metrics['metrics']; ms=lambda k:f"{M[k]['mean']:.4f} ± {M[k]['std']:.4f}"
+lines += ['', '## Baselines on the current benchmark (same evaluation definitions, fold mean ± std)', '', 'All rows below are scored on the same rows: pre-detectable F3 rows and native gaps excluded.', '', '| Detector | Binary F1 |', '|---|---:|',
+ f"| Fusion (with F7 gap rule) | {ms('f1')} |", f"| Fusion without the F7 gap rule | {ms('f1_no_gap_rule')} |", f"| WMO rules only (T0, incl. gap rule) | {ms('t0_f1')} |", f"| WMO rules only (T0, no gap rule) | {ms('t0_no_gap_rule_f1')} |",
+ f"| Isolation Forest (contamination = training-fold prevalence) | {ms('iforest_f1')} |", f"| Always fault | {ms('trivial_f1')} |"]
+lines += ['', '| F7 | Injected-gap recall | Precision (native gaps excluded) | Precision (native gaps counted as negatives) | Native-gap rows called F7 |', '|---|---:|---:|---:|---:|']
+for k,r in metrics['f7_check'].items(): lines.append(f"| {k} | {r['injected_gap_recall']:.3f} | {r['precision_excluding_native_gaps']:.3f} | {r['precision_including_native_gaps']:.3f} | {r['native_gap_rows_called_f7']:,} / {r['native_gap_rows']:,} |")
 lines += ['', '## Calendar shortcut check and placebo windows', '', f"Fusion heads exclude {CAL_COLS}. The with-calendar binary head is refit per fold for comparison only. Placebo windows = each protected window shifted +182 days, in both clusters (faults occur there).", '', '| Window | Obs | Clean alerts/1,000 (no calendar) | Clean alerts/1,000 (with calendar) | Fault rows | Fault-row recall (no calendar) | Fault-row recall (with calendar) |', '|---|---:|---:|---:|---:|---:|---:|']
 cc=metrics['calendar_check']
 for nm,r in cc['no_calendar'].items(): r2=cc['with_calendar'][nm]; lines.append(f"| {nm} | {r['n_obs']:,} | {r['clean_alerts_per_1000']:.2f} | {r2['clean_alerts_per_1000']:.2f} | {r.get('n_fault_rows','')} | {fmt(r.get('fault_row_recall'))} | {fmt(r2.get('fault_row_recall'))} |")

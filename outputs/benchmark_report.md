@@ -50,7 +50,7 @@ Macro-F1 across F1–F9 (OOF): **0.5869**.
 
 ## Scoring latency
 
-- p50: 1.302 ms; p95: 1.638 ms (timed row-by-row on fold 0's test set, n=500).
+- p50: 1.404 ms; p95: 1.727 ms (timed row-by-row on fold 0's test set, n=500).
 
 ## False alarms in protected windows (P(fault) >= 0.5)
 
@@ -135,6 +135,24 @@ Healthy T3 noise floor (median over stations; 3 sigma of the 56-step mean): temp
 | no_T1 class-correct event recall | 0.557 | 0.950 | 0.143 | 0.500 | 0.972 | 0.933 | 1.000 | 0.829 | 0.417 |
 | no_T2 class-correct event recall | 0.529 | 0.950 | 0.286 | 0.583 | 1.000 | 0.967 | 1.000 | 0.843 | 0.361 |
 | no_T3 class-correct event recall | 0.571 | 0.950 | 0.381 | 0.722 | 1.000 | 1.000 | 1.000 | 0.886 | 0.528 |
+
+## Baselines on the current benchmark (same evaluation definitions, fold mean ± std)
+
+All rows below are scored on the same rows: pre-detectable F3 rows and native gaps excluded.
+
+| Detector | Binary F1 |
+|---|---:|
+| Fusion (with F7 gap rule) | 0.6941 ± 0.0527 |
+| Fusion without the F7 gap rule | 0.6941 ± 0.0527 |
+| WMO rules only (T0, incl. gap rule) | 0.4914 ± 0.0597 |
+| WMO rules only (T0, no gap rule) | 0.4735 ± 0.0614 |
+| Isolation Forest (contamination = training-fold prevalence) | 0.4272 ± 0.0897 |
+| Always fault | 0.1268 ± 0.0096 |
+
+| F7 | Injected-gap recall | Precision (native gaps excluded) | Precision (native gaps counted as negatives) | Native-gap rows called F7 |
+|---|---:|---:|---:|---:|
+| with_gap_rule | 1.000 | 0.994 | 0.014 | 11,219 / 11,219 |
+| without_gap_rule | 1.000 | 0.994 | 0.014 | 11,219 / 11,219 |
 
 ## Calendar shortcut check and placebo windows
 
