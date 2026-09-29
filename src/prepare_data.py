@@ -10,22 +10,18 @@ START = pd.Timestamp('2023-01-01 00:00:00', tz='UTC')
 END = pd.Timestamp('2025-12-31 23:00:00', tz='UTC')
 HOURLY_GRID = pd.date_range(START, END, freq='h')
 
-STATIONS = [
-    # cluster (a): six highest-coverage candidates with a connected relaxed-neighbour graph
-    dict(station_id='42181', name='New Delhi / Palam', lat=28.5667, lon=77.1167, elevation_m=220.0, cluster='a'),
-    dict(station_id='42182', name='New Delhi / Safdarjung', lat=28.5833, lon=77.2000, elevation_m=211.0, cluster='a'),
-    dict(station_id='42348', name='Jaipur / Sanganer', lat=26.8167, lon=75.8000, elevation_m=385.0, cluster='a'),
-    dict(station_id='42170', name='Churu', lat=28.2500, lon=74.9167, elevation_m=290.0, cluster='a'),
-    dict(station_id='42103', name='Ambala', lat=30.3833, lon=76.7667, elevation_m=271.0, cluster='a'),
-    dict(station_id='42131', name='Hissar', lat=29.1667, lon=75.7333, elevation_m=216.0, cluster='a'),
-    # cluster (c): all six candidates passing the >=50% synoptic complete-triplet threshold
-    dict(station_id='43003', name='Bombay / Santacruz', lat=19.1167, lon=72.8500, elevation_m=8.0, cluster='c'),
-    dict(station_id='43014', name='Aurangabad Chikalthan Aerodrome', lat=19.8500, lon=75.4000, elevation_m=582.0, cluster='c'),
-    dict(station_id='43063', name='Poona', lat=18.5333, lon=73.8500, elevation_m=555.0, cluster='c'),
-    dict(station_id='43110', name='Ratnagiri', lat=16.9833, lon=73.3333, elevation_m=75.0, cluster='c'),
-    dict(station_id='42921', name='Nasik', lat=20.0000, lon=73.7833, elevation_m=598.0, cluster='c'),
-    dict(station_id='43117', name='Sholapur', lat=17.6667, lon=75.9000, elevation_m=477.0, cluster='c'),
-]
+# Station selection from the ranked candidate scan (data/clean/candidate_synoptic_coverage.csv): per cluster, the
+# highest complete-triplet synoptic coverage first, up to MAX_PER_CLUSTER at >= 50 %; if a cluster still has fewer than
+# MIN_PER_CLUSTER, the floor drops to 35 % and those stations are flagged low_coverage.
+MAX_PER_CLUSTER, MIN_PER_CLUSTER = 12, 8
+_cand = pd.read_csv(ROOT / 'data/clean/candidate_synoptic_coverage.csv', dtype={'station_id': str})
+_cand = _cand[_cand.status == 'ok'].sort_values('complete_triplet_synoptic_coverage_pct', ascending=False)
+STATIONS = []
+for _cl, _g in _cand.groupby('cluster', sort=True):
+    _pick = _g[_g.complete_triplet_synoptic_coverage_pct >= 50].head(MAX_PER_CLUSTER)
+    if len(_pick) < MIN_PER_CLUSTER:
+        _pick = _g[_g.complete_triplet_synoptic_coverage_pct >= 35].head(MAX_PER_CLUSTER)
+    STATIONS += [dict(station_id=r.station_id, name=r.name, lat=float(r.latitude), lon=float(r.longitude), elevation_m=float(r.elevation_m), cluster=r.cluster) for r in _pick.itertuples()]
 VARS = ['temp_c', 'mslp_hpa', 'rh_pct']
 RAW_VARS = ['temp', 'pres', 'rhum']
 
@@ -74,7 +70,7 @@ for s in STATIONS:
     ).fetch()
     raw.index = pd.to_datetime(raw.index, utc=True)
     raw = raw.rename(columns={'temp': 'temp_c', 'pres': 'mslp_hpa', 'rhum': 'rh_pct'})
-    raw = raw[[c for c in VARS if c in raw.columns]].sort_index()
+    raw = raw[[c for c in VARS if c in raw.columns]].sort_index().astype('float64')  # nullable Float64 -> float64 (NA -> NaN), values unchanged
     complete = raw[VARS].notna().all(axis=1)
     any_value = raw[VARS].notna().any(axis=1)
     interval_label, modal_hours, modal_share = native_interval(raw.index.to_series().diff().dt.total_seconds() / 3600)
@@ -94,7 +90,7 @@ for s in STATIONS:
 # Decision rule is applied to complete real T/P/RH triplets on the hourly grid.
 real_hourly_shares = [x['real_hourly_coverage_pct'] for x in fetch_log]
 hourly_qualified = sum(x >= 80.0 for x in real_hourly_shares)
-chosen_cadence = 'hourly' if hourly_qualified >= 8 else '3-hourly'
+chosen_cadence = '3-hourly'  # fixed by config/cadence_3h.yaml; hourly_qualified is still logged
 if chosen_cadence == 'hourly':
     EXPECTED = HOURLY_GRID
     cadence_hours = 1
@@ -146,6 +142,7 @@ summary = pd.DataFrame(rows)
 summary.to_csv(ROOT / 'data/clean/missingness_by_station.csv', index=False)
 meta = meta.merge(summary[['station_id', 'native_reporting_interval', 'temp_synoptic_coverage_pct', 'mslp_synoptic_coverage_pct', 'rh_synoptic_coverage_pct', 'complete_triplet_synoptic_coverage_pct']], on='station_id', how='left')
 meta['low_coverage'] = meta['complete_triplet_synoptic_coverage_pct'] < 50.0
+meta['in_default_set'] = ~meta['low_coverage']  # default benchmark set; low_coverage stations are an opt-in comparison
 meta.to_csv(ROOT / 'stations.csv', index=False)
 
 neigh = []

@@ -8,44 +8,186 @@ fusion model, root-cause classifier, isotonic calibration, SHAP explanations, an
 T2/T3-blended imputation) have all been run. `outputs/metrics.json` and
 `outputs/benchmark_report.md` are real results from this pipeline, not placeholders.
 
-Current benchmark (5-fold grouped-by-station CV, fold mean ± std; regenerate with
-`make bench` to reproduce these numbers from scratch):
+Current benchmark (default 15-station set, 5-fold grouped-by-station CV, fold mean ± std;
+regenerate with `make bench`). **Not like-for-like with earlier numbers:** the station set, the
+evaluation definitions (F7 gap rule, F3 pre-detectable rows, native gaps excluded) and the injector
+changed across fix/slow-faults and fix/detectability; see `SESSION-LOG.md` for each step.
 
 | Metric | Mean | Std |
 |---|---:|---:|
-| Fusion model F1 (binary fault/no-fault) | 0.584 | 0.113 |
-| Macro-F1 across F1-F9 (fold mean) | 0.411 | 0.026 |
-| WMO-rules (T0-only) baseline F1 | 0.390 | 0.032 |
-| Isolation Forest baseline F1 | 0.292 | 0.112 |
-| "Always fault" trivial baseline F1 | 0.080 | 0.009 |
-| ECE, raw probabilities | 0.076 | 0.014 |
-| ECE, after isotonic calibration | 0.018 | 0.009 |
+| Fusion model F1 (binary fault/no-fault, threshold 0.5) | 0.698 | 0.037 |
+| Fusion model F1 at the training-fold threshold (alerts <= 2 % of clean training steps) | 0.699 | 0.040 |
+| AUC-PR | 0.752 | 0.048 |
+| Macro-F1 across F1-F9 (fold mean) | 0.597 | 0.037 |
+| WMO-rules (T0-only, incl. gap rule) baseline F1 | 0.416 | 0.036 |
+| Isolation Forest baseline F1 | 0.449 | 0.040 |
+| "Always fault" trivial baseline F1 | 0.142 | 0.011 |
+| ECE, raw probabilities | 0.083 | 0.009 |
+| ECE, after isotonic calibration | 0.025 | 0.005 |
 
-Scoring latency (row-by-row, fold 0's test set, n=500): p50 0.99 ms, p95 1.76 ms.
+Scoring latency (row-by-row, fold 0's test set, n=500): p50 1.48 ms, p95 1.96 ms.
 
-False alarms per 1,000 observations inside protected windows (P(fault)>=0.5, should be
-low since these windows are never fault-injected): heatwave_a 11.6/1000 (1,632 obs),
-biparjoy_a 4.8/1000 (210 obs), monsoon_c 87.7/1000 (342 obs, the smallest window and the
-noisiest baseline — see "Honest limitations" in `outputs/benchmark_report.md`).
+False alarms per 1,000 observations inside protected windows (P(fault)>=0.5, native-gap rows
+excluded): heatwave_a 3.7/1000 (2,421 obs), biparjoy_a 3.2/1000 (308 obs), monsoon_c 0.0/1000 (311 obs).
+These windows sit far from any injected event, so they never see the post-event spillover of the
+causal rolling features; do not read them as the general false-alarm rate. Alerts per 1,000 clean
+steps (outside events, protected windows and native gaps): 22.9
+at 0.5 and 23.3 at the training-fold threshold (target 20; not met on test folds).
 
-Dataset: 105,216 station-times across 12 stations, 4,499 labelled fault observations
-(4.2% of rows), 2,184 rows inside protected windows.
+The coherent-event gate (spec section 8) is implemented but NOT applied: it cut fault recall
+0.681 -> 0.620 while lowering heatwave false alarms only
+3.7 -> 2.9 per 1,000 (revert rule).
 
-**What's still weak:** macro-F1 across the 9 fault classes (0.41) is well under the
-spec's 0.90 target — this is a small 12-station network with a real LightGBM model, not
-a tuned demo, and the number is reported honestly rather than adjusted to look better.
-The `monsoon_c` false-alarm rate is high relative to the other two windows; it is also
-the smallest window (342 observations), so a handful of false alarms swings the rate a
-lot. Calibration meaningfully improves ECE (0.076 -> 0.018) but does not change the F1
-numbers, which are uncalibrated-probability decisions at the 0.5 threshold.
+Dataset: 131,520 station-times across 15 stations, 9,976 labelled fault
+observations, 3,105 rows inside protected windows.
+
+**Healthy-period baseline.** Every T1, T2 and T3 residual is centred and scaled by that
+station-variable's own mean and std on the clean base (never neighbours', labels or injected
+values) before the causal slow-signal features are computed (rolling means 8/24/56, level change,
+least-squares slope 24/56, two-sided CUSUM k=0.5, h=5 with reset). T2 is a pure cross-variable
+LightGBM quantile model (no own lags or rolling stats of the target).
+
+**Injector (event-count sampling).** Minimum events per class across the 12 stations
+(F1 60, F2 40, F3 24, F4 30, F5 30, F6 30, F7 30, F8 60, F9 30; the code uses slightly
+higher counts, each class on all 12 stations). Events never overlap each other or protected windows.
+Durations (1 step = 3 h): F2 4-24, F3 56-112, F4 8-80, F5 4-80, F9 1-16 steps. Faulty coverage
+must be 4-8% with no class above 30% of labelled rows (both tested).
+**Documented deviation:** F3 drift lasts 7-14 days, shorter than the spec's 7-45 days, so 24
+drift events fit in the coverage budget.
+
+**Evaluation definitions (fix/detectability).**
+- F3 drift rows count as a fault (training positive and scored row) only from the first step where
+  the injected error reaches the tolerance (0.5 °C, 5 % RH, 0.5 hPa). Earlier rows are
+  "pre-detectable": sample weight 0 in training, excluded from row-level scoring, kept in the event
+  table. F3 event detection counts flags from the tolerance crossing onward; delay is reported from
+  the tolerance crossing and from the PRD crossing (1 °C, 5 % RH, 1 hPa).
+- A missing expected timestamp is a comms fault whatever its cause, and the label file cannot
+  separate injected from native gaps. A deterministic T0 gap rule flags every missing timestamp
+  as F7. F7 recall is measured on injected gaps and is 1.0 by construction; native-gap rows are
+  excluded from all row-level scoring (including the F7 precision denominator), from the
+  clean-step alert rate and from protected-window false-alarm rates.
+- The F3 injector magnitude now follows spec section 6 (0.5-3 °C, 3-15 % RH, 0.5-3 hPa; T and RH
+  mainly, P 10 %). RH drift was 0.5-3 % before, below spec and below the RH noise floor.
+
+**Folds.** Default `GroupKFold` station assignment was kept: every test fold holds at least 4 events of
+every class and every training set at least 18 (per-fold counts and station lists are in
+`outputs/metrics.json` under `fold_test_events` and in `outputs/benchmark_report.md`). No reassignment was needed.
+
+**What's still weak:** macro-F1 (~0.60) is far under the spec's 0.90 target. F3 drift F1 is
+~0.20 (class-correct event recall 0.48): most spec drifts sit near the T3 noise floor. F4 offset F1
+~0.21 and F9 ~0.30. F1 spikes are explained by T0 rules (step flag), not T1, in 91 % of alerts.
+F7's ~0.95 F1 rests on excluding native gaps from scoring (precision 0.014 if they count as
+negatives). Clean-step alert rate (~23 per 1,000) stays above the 2 % target even at the
+training-fold threshold. Alert witness sentences can cite a large 24-step slow-signal mean that
+is spillover from a nearby injected sentinel. See `SESSION-LOG.md` and `outputs/benchmark_report.md`.
 
 Scope:
 
-- 12 stations: 6 in cluster **(a)** Delhi-NCR/Rajasthan and 6 in cluster **(c)** Maharashtra.
+- Default benchmark: 15 stations (fix/detectability Stage D; was 12): 9 in cluster **(a)**
+  Delhi-NCR/Rajasthan and 6 in cluster **(c)** Maharashtra, all with complete-triplet synoptic
+  coverage >= 50 % (`in_default_set` in `stations.csv`). `stations.csv` keeps 20 rows: cluster (c)
+  had only 6 candidates at >= 50 %, so the 35 % fallback added 5 `low_coverage` stations (43157
+  Kolhapur, 43002 Bombay/Juhu, 43001 Dahanu, 43109 Harnai, 43057 Bombay/Colaba). They are an opt-in
+  comparison only (`SKYGUARD_ALL_STATIONS=1`, see "Station-set comparison"). Selection is automatic
+  from `data/clean/candidate_synoptic_coverage.csv` in `src/prepare_data.py`. Re-fetched data for
+  the original 12 stations is identical to the previous fetch. Cadence is pinned to 3-hourly
+  (config). Injector event counts scale with station count; per-class minimums are unchanged.
 - Cluster (b), edge tier, and LSTM baseline are excluded.
 - Future LightGBM models use at most **200 trees**.
 - Evaluation uses grouped **5-fold cross-validation by station**.
 - Current pipeline cadence is **3-hourly synoptic time**: 00, 03, ..., 21 UTC.
+
+## Limits and reading of the PS
+
+- **"Only T, P, RH".** We read this as: no other weather parameters (no wind, rain, dew point feed or
+  reanalysis). The engine uses only temperature, sea-level pressure and relative humidity. For
+  spatial consistency (T3) it also uses neighbouring stations' T/P/RH and station coordinates and
+  elevation. Without neighbours the engine still works: T3 abstains for a station with no links,
+  and the no-T3 ablation (all T3 features removed, heads retrained) runs the full pipeline.
+- **Macro-F1 is 0.60, against the spec's 0.90 target.** Binary F1 is 0.70
+  (15-station default, grouped 5-fold CV by station).
+- **Alert volume is above target.** Alerts are 2.3 % of clean steps at P(fault) >= 0.5 and
+  2.3 % at the threshold chosen on training folds for 2 %; the 2 % target is not met on test folds.
+- **Protected windows are not a general false-alarm rate.** They are quieter than ordinary clean
+  data, partly because no injected event sits near them. Causal rolling features spill over after an
+  event ends: clean rows 1-8 steps after an event alerted at 142.6 per 1,000 against 17.9 far from
+  events (measured on the 12-station run, Stage A in `SESSION-LOG.md`).
+- **F7 (dropout) scores are definitional.** Every missing timestamp is flagged F7 by rule, and native
+  source gaps are excluded from scoring because the labels cannot separate them from injected gaps.
+  Counting native gaps as negatives gives F7 precision 0.014.
+- **Drift (F3) is mostly near the noise floor.** Most spec-range drifts have a mean error at or below
+  the noise of the neighbour residual (3 sigma of its 56-step mean, median over the 15 default stations: 1.91 °C,
+  1.51 hPa, 13.4 % RH). F3 F1 is 0.20; class-correct event recall 0.48.
+- **What the benchmark is.** Faults are injected by `src/skyguard_inject.py` into real Meteostat
+  observations (`model=False`, no interpolation, exact 3-hourly synoptic timestamps). Pressure is
+  sea-level pressure; station pressure is not available from the source. Results are an
+  injected-fault estimate, not a field validation.
+
+## Station-set comparison
+
+Default benchmark = 15 stations (the 12 original plus 3 new stations with complete-triplet synoptic coverage >= 50 %).
+The 20-station set adds the 5 `low_coverage` stations of cluster (c) (35 % floor) and is opt-in: `SKYGUARD_ALL_STATIONS=1 make bench`
+writes to `outputs/all_stations/` and `data/bench/all_stations/`. The default was fixed in advance on two grounds: the 35 % floor was
+a fallback, and the 15-station binary F1 is within 0.03 of the 12-station Stage C result. **Caveat:** the two sets differ by exactly
+the 5 low-coverage stations, but the grouped fold assignment and the injected events (counts scale with station count) also shift,
+so differences are not only a station-quality effect. Numbers below are copied from the two `metrics.json` files.
+
+| Metric | 15 stations (default) | 20 stations |
+|---|---:|---:|
+| Binary F1 | 0.698 ± 0.037 | 0.651 ± 0.027 |
+| Precision | 0.717 ± 0.039 | 0.629 ± 0.069 |
+| Recall | 0.681 ± 0.049 | 0.682 ± 0.041 |
+| Macro-F1 (OOF) | 0.597 | 0.592 |
+| Alerts / 1,000 clean steps | 22.87 | 33.28 |
+| False alarms / 1,000, heatwave_a | 3.72 (2,421 obs) | 9.09 (2,421 obs) |
+| False alarms / 1,000, biparjoy_a | 3.25 (308 obs) | 6.49 (308 obs) |
+| False alarms / 1,000, monsoon_c | 0.00 (311 obs) | 20.04 (449 obs) |
+| Labelled fault rows | 9,976 | 10,942 |
+
+| Class | F1, 15 stations | F1, 20 stations | Class-correct event recall, 15 | Class-correct event recall, 20 |
+|---|---:|---:|---:|---:|
+| F1 | 0.477 | 0.558 | 0.580 | 0.573 |
+| F2 | 0.725 | 0.580 | 0.973 | 0.890 |
+| F3 | 0.197 | 0.164 | 0.483 | 0.487 |
+| F4 | 0.208 | 0.300 | 0.689 | 0.733 |
+| F5 | 0.789 | 0.758 | 1.000 | 0.967 |
+| F6 | 0.935 | 0.944 | 1.000 | 1.000 |
+| F7 | 0.945 | 0.975 | 1.000 | 1.000 |
+| F8 | 0.796 | 0.797 | 0.886 | 0.821 |
+| F9 | 0.300 | 0.255 | 0.600 | 0.600 |
+
+Ablation (paired per-fold binary F1 difference, full minus tier removed):
+
+| Tier removed | 15 stations (per fold; mean; folds ablated >= full) | 20 stations |
+|---|---|---|
+| no_T1 | +0.050, +0.048, +0.054, +0.060, +0.043; +0.051; 0/5 | +0.014, +0.081, +0.091, +0.046, +0.117; +0.070; 0/5 |
+| no_T2 | +0.008, +0.008, +0.007, +0.025, +0.022; +0.014; 0/5 | +0.008, +0.028, +0.008, +0.017, +0.020; +0.016; 0/5 |
+| no_T3 | +0.046, +0.051, -0.008, +0.030, +0.033; +0.030; 1/5 | +0.048, +0.041, +0.040, +0.044, +0.029; +0.040; 0/5 |
+
+Neighbour count per station (links used by T3; 12 stations = before Stage D):
+
+| Station | 12 stations | 15 stations | 20 stations |
+|---|---:|---:|---:|
+| 42181 | 2 | 2 | 2 |
+| 42348 | 4 | 4 | 4 |
+| 42182 | 2 | 2 | 2 |
+| 42170 | 2 | 2 | 2 |
+| 42101 | - | 3 | 3 |
+| 42189 | - | 3 | 3 |
+| 42103 | 4 | 3 | 3 |
+| 42111 | - | 2 | 2 |
+| 42131 | 4 | 5 | 5 |
+| 43003 | 4 | 4 | 4 |
+| 43014 | 4 | 4 | 7 |
+| 43063 | 2 | 2 | 2 |
+| 43110 | 3 | 3 | 3 |
+| 42921 | 2 | 2 | 2 |
+| 43117 | 3 | 3 | 5 |
+| 43157 | - | - | 5 |
+| 43002 | - | - | 4 |
+| 43001 | - | - | 3 |
+| 43109 | - | - | 4 |
+| 43057 | - | - | 4 |
 
 ## Retrieval and pressure
 

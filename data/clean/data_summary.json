@@ -14,81 +14,186 @@
     "required": 8,
     "kept_hourly": false
   },
-  "station_count": 12,
+  "station_count": 20,
   "stations_per_cluster": {
-    "a": 6,
-    "c": 6
+    "a": 9,
+    "c": 11
   },
-  "expected_rows_total": 105216,
-  "complete_real_observation_rows_total": 93816,
-  "any_value_rows_total": 93997,
-  "any_variable_missing_pct_total": 10.8349,
-  "temp_missing_pct_total": 10.698,
-  "mslp_missing_pct_total": 10.7674,
-  "rh_missing_pct_total": 10.7313,
+  "expected_rows_total": 175360,
+  "complete_real_observation_rows_total": 135169,
+  "any_value_rows_total": 135415,
+  "any_variable_missing_pct_total": 22.9191,
+  "temp_missing_pct_total": 22.8085,
+  "mslp_missing_pct_total": 22.865,
+  "rh_missing_pct_total": 22.8347,
   "strict_neighbour_pairs": [
     {
       "cluster": "a",
       "station_a": "42181",
       "station_b": "42182",
-      "distance_km": 8.34,
+      "distance_km": 8.3,
       "elevation_diff_m": 9.0
     },
     {
       "cluster": "a",
-      "station_a": "42170",
-      "station_b": "42348",
-      "distance_km": 181.62,
+      "station_a": "42181",
+      "station_b": "42131",
+      "distance_km": 150.3,
+      "elevation_diff_m": 4.0
+    },
+    {
+      "cluster": "a",
+      "station_a": "42348",
+      "station_b": "42170",
+      "distance_km": 181.6,
       "elevation_diff_m": 95.0
+    },
+    {
+      "cluster": "a",
+      "station_a": "42182",
+      "station_b": "42131",
+      "distance_km": 156.9,
+      "elevation_diff_m": 5.0
+    },
+    {
+      "cluster": "a",
+      "station_a": "42170",
+      "station_b": "42131",
+      "distance_km": 129.4,
+      "elevation_diff_m": 74.0
+    },
+    {
+      "cluster": "a",
+      "station_a": "42101",
+      "station_b": "42103",
+      "distance_km": 29.3,
+      "elevation_diff_m": 22.0
+    },
+    {
+      "cluster": "a",
+      "station_a": "42101",
+      "station_b": "42111",
+      "distance_km": 150.4,
+      "elevation_diff_m": 434.0
+    },
+    {
+      "cluster": "a",
+      "station_a": "42101",
+      "station_b": "42131",
+      "distance_km": 147.8,
+      "elevation_diff_m": 33.0
+    },
+    {
+      "cluster": "a",
+      "station_a": "42103",
+      "station_b": "42111",
+      "distance_km": 121.8,
+      "elevation_diff_m": 412.0
     },
     {
       "cluster": "a",
       "station_a": "42103",
       "station_b": "42131",
-      "distance_km": 168.07,
+      "distance_km": 168.1,
       "elevation_diff_m": 55.0
     },
     {
-      "cluster": "a",
-      "station_a": "42131",
-      "station_b": "42181",
-      "distance_km": 150.33,
+      "cluster": "c",
+      "station_a": "43003",
+      "station_b": "43002",
+      "distance_km": 1.8,
       "elevation_diff_m": 4.0
     },
     {
-      "cluster": "a",
-      "station_a": "42131",
-      "station_b": "42182",
-      "distance_km": 156.85,
-      "elevation_diff_m": 5.0
+      "cluster": "c",
+      "station_a": "43003",
+      "station_b": "43001",
+      "distance_km": 95.5,
+      "elevation_diff_m": 4.0
     },
     {
-      "cluster": "a",
-      "station_a": "42131",
-      "station_b": "42170",
-      "distance_km": 129.35,
-      "elevation_diff_m": 74.0
+      "cluster": "c",
+      "station_a": "43003",
+      "station_b": "43109",
+      "distance_km": 146.9,
+      "elevation_diff_m": 9.0
+    },
+    {
+      "cluster": "c",
+      "station_a": "43003",
+      "station_b": "43057",
+      "distance_km": 24.3,
+      "elevation_diff_m": 2.0
+    },
+    {
+      "cluster": "c",
+      "station_a": "43014",
+      "station_b": "42921",
+      "distance_km": 169.8,
+      "elevation_diff_m": 16.0
     },
     {
       "cluster": "c",
       "station_a": "43063",
       "station_b": "43110",
-      "distance_km": 180.83,
+      "distance_km": 180.8,
       "elevation_diff_m": 480.0
     },
     {
       "cluster": "c",
-      "station_a": "42921",
-      "station_b": "43014",
-      "distance_km": 169.83,
-      "elevation_diff_m": 16.0
+      "station_a": "43063",
+      "station_b": "42921",
+      "distance_km": 163.2,
+      "elevation_diff_m": 43.0
     },
     {
       "cluster": "c",
-      "station_a": "42921",
-      "station_b": "43063",
-      "distance_km": 163.24,
-      "elevation_diff_m": 43.0
+      "station_a": "43110",
+      "station_b": "43157",
+      "distance_km": 100.8,
+      "elevation_diff_m": 494.0
+    },
+    {
+      "cluster": "c",
+      "station_a": "43110",
+      "station_b": "43109",
+      "distance_km": 95.9,
+      "elevation_diff_m": 58.0
+    },
+    {
+      "cluster": "c",
+      "station_a": "43002",
+      "station_b": "43001",
+      "distance_km": 95.3,
+      "elevation_diff_m": 0.0
+    },
+    {
+      "cluster": "c",
+      "station_a": "43002",
+      "station_b": "43109",
+      "distance_km": 147.3,
+      "elevation_diff_m": 13.0
+    },
+    {
+      "cluster": "c",
+      "station_a": "43002",
+      "station_b": "43057",
+      "distance_km": 24.2,
+      "elevation_diff_m": 6.0
+    },
+    {
+      "cluster": "c",
+      "station_a": "43001",
+      "station_b": "43057",
+      "distance_km": 119.1,
+      "elevation_diff_m": 6.0
+    },
+    {
+      "cluster": "c",
+      "station_a": "43109",
+      "station_b": "43057",
+      "distance_km": 124.1,
+      "elevation_diff_m": 7.0
     }
   ],
   "fetch_log": [
@@ -109,22 +214,6 @@
       "last_raw_observation": "2025-12-31T23:00:00+00:00"
     },
     {
-      "station_id": "42182",
-      "name": "New Delhi / Safdarjung",
-      "cluster": "a",
-      "raw_rows_returned": 7595,
-      "real_complete_rows": 7581,
-      "real_any_value_rows": 7594,
-      "expected_hourly_rows": 26304,
-      "real_hourly_coverage_pct": 28.8207,
-      "real_any_hourly_coverage_pct": 28.8701,
-      "native_reporting_interval": "3-hourly",
-      "modal_interval_hours": 3,
-      "modal_interval_share_pct": 96.01,
-      "first_raw_observation": "2023-01-01T00:00:00+00:00",
-      "last_raw_observation": "2025-11-13T12:00:00+00:00"
-    },
-    {
       "station_id": "42348",
       "name": "Jaipur / Sanganer",
       "cluster": "a",
@@ -139,6 +228,22 @@
       "modal_interval_share_pct": 98.8154,
       "first_raw_observation": "2023-01-01T00:00:00+00:00",
       "last_raw_observation": "2025-12-31T23:00:00+00:00"
+    },
+    {
+      "station_id": "42182",
+      "name": "New Delhi / Safdarjung",
+      "cluster": "a",
+      "raw_rows_returned": 7595,
+      "real_complete_rows": 7581,
+      "real_any_value_rows": 7594,
+      "expected_hourly_rows": 26304,
+      "real_hourly_coverage_pct": 28.8207,
+      "real_any_hourly_coverage_pct": 28.8701,
+      "native_reporting_interval": "3-hourly",
+      "modal_interval_hours": 3,
+      "modal_interval_share_pct": 96.01,
+      "first_raw_observation": "2023-01-01T00:00:00+00:00",
+      "last_raw_observation": "2025-11-13T12:00:00+00:00"
     },
     {
       "station_id": "42170",
@@ -157,6 +262,38 @@
       "last_raw_observation": "2025-08-24T21:00:00+00:00"
     },
     {
+      "station_id": "42101",
+      "name": "Patiala",
+      "cluster": "a",
+      "raw_rows_returned": 7449,
+      "real_complete_rows": 7438,
+      "real_any_value_rows": 7449,
+      "expected_hourly_rows": 26304,
+      "real_hourly_coverage_pct": 28.2771,
+      "real_any_hourly_coverage_pct": 28.3189,
+      "native_reporting_interval": "3-hourly",
+      "modal_interval_hours": 3,
+      "modal_interval_share_pct": 98.2009,
+      "first_raw_observation": "2023-01-01T00:00:00+00:00",
+      "last_raw_observation": "2025-08-24T18:00:00+00:00"
+    },
+    {
+      "station_id": "42189",
+      "name": "Bareilly",
+      "cluster": "a",
+      "raw_rows_returned": 8566,
+      "real_complete_rows": 8342,
+      "real_any_value_rows": 8566,
+      "expected_hourly_rows": 26304,
+      "real_hourly_coverage_pct": 31.7138,
+      "real_any_hourly_coverage_pct": 32.5654,
+      "native_reporting_interval": "3-hourly",
+      "modal_interval_hours": 3,
+      "modal_interval_share_pct": 76.2639,
+      "first_raw_observation": "2023-01-01T00:00:00+00:00",
+      "last_raw_observation": "2025-08-24T21:00:00+00:00"
+    },
+    {
       "station_id": "42103",
       "name": "Ambala",
       "cluster": "a",
@@ -169,6 +306,22 @@
       "native_reporting_interval": "3-hourly",
       "modal_interval_hours": 3,
       "modal_interval_share_pct": 98.0366,
+      "first_raw_observation": "2023-01-01T00:00:00+00:00",
+      "last_raw_observation": "2025-08-24T21:00:00+00:00"
+    },
+    {
+      "station_id": "42111",
+      "name": "Dehradun",
+      "cluster": "a",
+      "raw_rows_returned": 7413,
+      "real_complete_rows": 7394,
+      "real_any_value_rows": 7413,
+      "expected_hourly_rows": 26304,
+      "real_hourly_coverage_pct": 28.1098,
+      "real_any_hourly_coverage_pct": 28.182,
+      "native_reporting_interval": "3-hourly",
+      "modal_interval_hours": 3,
+      "modal_interval_share_pct": 97.7874,
       "first_raw_observation": "2023-01-01T00:00:00+00:00",
       "last_raw_observation": "2025-08-24T21:00:00+00:00"
     },
@@ -283,6 +436,86 @@
       "modal_interval_share_pct": 87.4643,
       "first_raw_observation": "2023-01-01T00:00:00+00:00",
       "last_raw_observation": "2025-12-31T10:00:00+00:00"
+    },
+    {
+      "station_id": "43157",
+      "name": "Kolhapur",
+      "cluster": "c",
+      "raw_rows_returned": 11172,
+      "real_complete_rows": 10866,
+      "real_any_value_rows": 11172,
+      "expected_hourly_rows": 26304,
+      "real_hourly_coverage_pct": 41.3093,
+      "real_any_hourly_coverage_pct": 42.4726,
+      "native_reporting_interval": "hourly",
+      "modal_interval_hours": 1,
+      "modal_interval_share_pct": 87.1005,
+      "first_raw_observation": "2023-01-01T03:00:00+00:00",
+      "last_raw_observation": "2025-12-31T11:00:00+00:00"
+    },
+    {
+      "station_id": "43002",
+      "name": "Bombay / Juhu",
+      "cluster": "c",
+      "raw_rows_returned": 11210,
+      "real_complete_rows": 11210,
+      "real_any_value_rows": 11210,
+      "expected_hourly_rows": 26304,
+      "real_hourly_coverage_pct": 42.6171,
+      "real_any_hourly_coverage_pct": 42.6171,
+      "native_reporting_interval": "hourly",
+      "modal_interval_hours": 1,
+      "modal_interval_share_pct": 90.0437,
+      "first_raw_observation": "2023-01-01T02:00:00+00:00",
+      "last_raw_observation": "2025-12-31T12:00:00+00:00"
+    },
+    {
+      "station_id": "43001",
+      "name": "Dahanu",
+      "cluster": "c",
+      "raw_rows_returned": 3778,
+      "real_complete_rows": 3777,
+      "real_any_value_rows": 3778,
+      "expected_hourly_rows": 26304,
+      "real_hourly_coverage_pct": 14.359,
+      "real_any_hourly_coverage_pct": 14.3628,
+      "native_reporting_interval": "mixed",
+      "modal_interval_hours": 3,
+      "modal_interval_share_pct": 53.005,
+      "first_raw_observation": "2023-01-01T00:00:00+00:00",
+      "last_raw_observation": "2025-08-24T12:00:00+00:00"
+    },
+    {
+      "station_id": "43109",
+      "name": "Harnai",
+      "cluster": "c",
+      "raw_rows_returned": 3554,
+      "real_complete_rows": 3545,
+      "real_any_value_rows": 3554,
+      "expected_hourly_rows": 26304,
+      "real_hourly_coverage_pct": 13.477,
+      "real_any_hourly_coverage_pct": 13.5113,
+      "native_reporting_interval": "mixed",
+      "modal_interval_hours": 3,
+      "modal_interval_share_pct": 68.027,
+      "first_raw_observation": "2023-01-01T03:00:00+00:00",
+      "last_raw_observation": "2025-08-24T12:00:00+00:00"
+    },
+    {
+      "station_id": "43057",
+      "name": "Bombay / Colaba",
+      "cluster": "c",
+      "raw_rows_returned": 3479,
+      "real_complete_rows": 3477,
+      "real_any_value_rows": 3479,
+      "expected_hourly_rows": 26304,
+      "real_hourly_coverage_pct": 13.2185,
+      "real_any_hourly_coverage_pct": 13.2261,
+      "native_reporting_interval": "mixed",
+      "modal_interval_hours": 3,
+      "modal_interval_share_pct": 56.958,
+      "first_raw_observation": "2023-01-01T03:00:00+00:00",
+      "last_raw_observation": "2025-08-24T15:00:00+00:00"
     }
   ]
 }
