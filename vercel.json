@@ -1,0 +1,5 @@
+{
+  "installCommand": "pnpm install",
+  "buildCommand": "VITE_STATIC_DEMO=1 pnpm exec vite build",
+  "outputDirectory": "dist/public"
+}
