@@ -19,3 +19,4 @@ body{background-color:#edf2f6;background-image:linear-gradient(rgba(79,70,229,.0
 .health-method{max-width:1100px;line-height:1.55}.health-status.failed{color:#be123c}.health-status.failed span{background:#e11d48}.health-status.nodata{color:#94a3b8}.health-status.nodata span{background:#cbd5e1}.health-meta b.nodata{color:#94a3b8;font-weight:400}.health-meta svg{flex:none}
 .consensus-row b.abstain{color:#94a3b8}.drill-button{justify-content:center;height:37px}
 .figure-card{padding:0;text-align:left;cursor:zoom-in}.lightbox figure{margin:0;background:#fff;border-radius:12px;padding:14px;max-width:92vw;max-height:92vh;display:flex;flex-direction:column;gap:8px;box-shadow:0 25px 65px #0f172a33}.lightbox figure img{max-width:88vw;max-height:80vh;object-fit:contain}.lightbox figcaption{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:13px}
+.seg-caption{font-style:italic}
