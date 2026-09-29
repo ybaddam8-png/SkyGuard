@@ -342,3 +342,28 @@ Drift (F3) class-correct event recall 0.48 over 30 events (12 stations: 0.24 ove
 Versus Stage C (12 stations): binary F1 0.707 -> 0.698, macro-F1 0.603 -> 0.597, F3 F1 0.172 -> 0.197,
 F4 0.325 -> 0.208, F9 0.224 -> 0.300; heatwave false alarms 1.9 -> 3.7, biparjoy 0 -> 3.3.
 `make all` (pytest 8 passed), `make sync-dashboard`, `pnpm run build` and `pnpm run check` pass.
+
+## fix/detectability — Stage E: coherent-event gate, operating point, explanation quality (15 stations)
+
+Coherent-event gate implemented as spec section 8 (>= 2 of 3 variables beyond the T1 q10-q90 band;
+T and RH, when both out, in opposite directions; pressure either way; mean neighbour_agreement over
+those variables >= 0.5, which at 3-hourly cadence is the same test as "same signature within +-2 h";
+no T0 hard fail or sentinel; not a gap; P(fault) capped at 0.3). It gates 6,606 rows, 866 of them
+injected-fault rows. Result: recall 0.681 -> 0.620, F1 0.698 -> 0.662, false alarms per 1,000
+heatwave 3.7 -> 2.9, biparjoy 3.3 -> 3.3, monsoon 0 -> 0. Fault recall got worse, so the gate is
+REVERTED (`GATE_ON=False`); both columns stay in the report. (The first gated run also left the
+ablation heads ungated, which skewed its ablation; the reverted run is consistent.)
+
+Operating point from training folds only (4-fold grouped CV inside the training stations, threshold =
+98th percentile of out-of-fold P(fault) on clean, unprotected training steps): threshold 0.503 ± 0.024,
+test precision 0.719, recall 0.682, F1 0.699, alerts per 1,000 clean test steps 23.3 ± 8.4 (target 20:
+not met on test; the test stations are noisier than the training ones). At 0.5: precision 0.717,
+recall 0.681, F1 0.698, 23.0 per 1,000. AUC-PR 0.752 ± 0.048.
+
+Alert sentences now name witnesses: T0 rules, T1, T2, T3 (|healthy-baselined residual| > 3 objects;
+T3 abstains without neighbours) and a slow-signal witness (24-step mean). Explanation quality (top SHAP
+factor of the binary head on flagged injected-fault rows, up to 300 per class): F1 from T1 0.011
+(T0 step rule 0.91); F2 from T0/T2 0.963; F3 from T3/slow 0.800 (mostly slow T1 features); F4 0.747;
+F9 from T2 0.641. Weakness seen: the slow-signal witness can quote a very large 24-step mean that is
+spillover from a nearby injected sentinel (F8 -9999). `make all` (pytest 8 passed),
+`make sync-dashboard`, `pnpm run build` and `pnpm run check` pass.

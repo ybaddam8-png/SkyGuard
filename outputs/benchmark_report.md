@@ -50,7 +50,7 @@ Macro-F1 across F1–F9 (OOF): **0.5967**.
 
 ## Scoring latency
 
-- p50: 1.621 ms; p95: 2.023 ms (timed row-by-row on fold 0's test set, n=500).
+- p50: 1.475 ms; p95: 1.959 ms (timed row-by-row on fold 0's test set, n=500).
 
 ## False alarms in protected windows (P(fault) >= 0.5)
 
@@ -164,6 +164,36 @@ All rows below are scored on the same rows: pre-detectable F3 rows and native ga
 | with_gap_rule | 1.000 | 0.896 | 0.014 | 15,215 / 15,215 |
 | without_gap_rule | 1.000 | 0.896 | 0.014 | 15,215 / 15,215 |
 
+## Coherent-event gate (spec section 8)
+
+Gate enabled: False. Rows gated: 6,606, of which injected-fault rows: 866.
+
+| | Without gate | With gate |
+|---|---:|---:|
+| Binary precision | 0.7174 ± 0.0387 | 0.7106 ± 0.0395 |
+| Binary recall | 0.6810 ± 0.0491 | 0.6202 ± 0.0512 |
+| Binary F1 | 0.6980 ± 0.0373 | 0.6615 ± 0.0398 |
+| False alarms / 1,000, heatwave_a | 3.72 | 2.89 |
+| False alarms / 1,000, biparjoy_a | 3.25 | 3.25 |
+| False alarms / 1,000, monsoon_c | 0.00 | 0.00 |
+
+Gate NOT applied to the reported model: it lowers fault recall (rule: revert if any window or fault recall gets worse).
+
+## Operating point (threshold from training folds only)
+
+Per outer fold: 4-fold grouped CV inside the training stations gives out-of-fold P(fault) on training rows; the threshold is the 98th percentile of P(fault) on clean, unprotected training steps (alerts under 2 %), applied unchanged to the test fold. Clean steps = no injected fault, outside protected windows, not native gaps.
+
+| | At training-fold threshold | At 0.5 |
+|---|---:|---:|
+| Threshold | 0.5033 ± 0.0243 | 0.5 |
+| Precision | 0.7193 ± 0.0548 | 0.7174 ± 0.0387 |
+| Recall | 0.6820 ± 0.0499 | 0.6810 ± 0.0491 |
+| F1 | 0.6987 ± 0.0396 | 0.6980 ± 0.0373 |
+| Alerts / 1,000 clean test steps | 23.3088 ± 8.4299 | 23.0336 ± 5.8410 |
+| AUC-PR (threshold-free) | 0.7524 ± 0.0475 | |
+
+Clean-step alert share on the training rows at the chosen threshold: 0.0200 ± 0.0000.
+
 ## Calendar shortcut check and placebo windows
 
 Fusion heads exclude ['hour_sin', 'hour_cos', 'doy_sin', 'doy_cos', 'temp_c_clim_mu', 'mslp_hpa_clim_mu', 'rh_pct_clim_mu']. The with-calendar binary head is refit per fold for comparison only. Placebo windows = each protected window shifted +182 days, in both clusters (faults occur there).
@@ -213,3 +243,17 @@ The benchmark is an injected-data estimate over a small station network (15 stat
 - `outputs/figures/confusion_matrix.png`
 - `outputs/figures/example_fault_spans.png`
 - `outputs/figures/heatwave_no_injection.png`
+
+## Explanation quality (top SHAP factor of the binary head, flagged injected-fault rows, up to 300 per class)
+
+| Class | Alerts | Explained | Expected tier | Share with top factor from expected tier | Top-factor tier distribution |
+|---|---:|---:|---|---:|---|
+| F1 | 87 | 87 | T1 | 0.011 | {'T0': 0.908, 'T2': 0.08, 'T1': 0.011} |
+| F2 | 888 | 300 | T0 or T2 | 0.963 | {'T0': 0.857, 'T2': 0.107, 'T1 (slow)': 0.013, 'T3 (slow)': 0.013, 'T3': 0.01} |
+| F3 | 325 | 300 | T3 or slow-signal | 0.800 | {'T1 (slow)': 0.693, 'T3 (slow)': 0.103, 'T2': 0.093, 'T1': 0.083, 'T0': 0.02, 'T3': 0.003, 'raw/other': 0.003} |
+| F4 | 665 | 300 | T3 or slow-signal | 0.747 | {'T1 (slow)': 0.37, 'T3 (slow)': 0.293, 'T2': 0.13, 'T1': 0.11, 'T3': 0.083, 'T0': 0.013} |
+| F5 | 1,829 | 300 | - | n/a | {'T0': 0.623, 'T2': 0.303, 'raw/other': 0.047, 'T3 (slow)': 0.02, 'T1 (slow)': 0.007} |
+| F6 | 1,607 | 300 | - | n/a | {'T0': 0.833, 'T2': 0.153, 'T1': 0.01, 'T3 (slow)': 0.003} |
+| F7 | 0 | 0 | - | n/a |  |
+| F8 | 87 | 87 | - | n/a | {'T0': 0.897, 'T2': 0.103} |
+| F9 | 256 | 256 | T2 | 0.641 | {'T2': 0.641, 'T0': 0.297, 'T3 (slow)': 0.031, 'T1 (slow)': 0.02, 'T3': 0.008, 'raw/other': 0.004} |

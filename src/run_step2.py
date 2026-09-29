@@ -236,6 +236,21 @@ blocks={'no_T1':[c for c in X.columns if c.startswith(('z1_','t1_q','slow_t1_'))
 # hold injected faults, so time of year is a shortcut. T1/T2 keep time features as forecasters. *_clim_mu is a month-hour lookup.
 CAL_COLS=['hour_sin','hour_cos','doy_sin','doy_cos']+[v+'_clim_mu' for v in VARS]
 base_cols=[c for c in X.columns if c not in ['station_code']+CAL_COLS and not c.startswith('r3_')]
+# coherent-event gate (spec section 8), before any fault verdict. Directions beyond the T1 band (q10..q90):
+# (1) >= 2 of 3 variables beyond the band, physically consistent: when T and RH are both beyond it they move in
+#     opposite directions (storm: T down, RH up; heat: T up, RH down); pressure may move either way;
+# (2) mean neighbour_agreement over those variables >= 0.5 (at 3-hourly cadence "same signature within +-2 h" is the
+#     same timestamp, which neighbour_agreement already measures); (3) no T0 hard fail or sentinel, not a gap.
+# All three -> "weather", P(fault) capped at 0.3. (1) alone with no neighbours -> no cap.
+GATE_ON=False  # reverted: evaluated in Stage E, it cut fault recall 0.681 -> 0.620 (see benchmark_report.md); still reported
+_dir={v:np.where(Xraw[v].to_numpy()>X[f't1_q90_{v}'].to_numpy(),1,np.where(Xraw[v].to_numpy()<X[f't1_q10_{v}'].to_numpy(),-1,0)) for v in VARS}
+_n_out=sum(np.abs(_dir[v]) for v in VARS)
+_cons=~((_dir['temp_c']!=0)&(_dir['rh_pct']!=0)&(_dir['temp_c']==_dir['rh_pct']))
+_out_any=np.stack([_dir[v]!=0 for v in VARS],1)
+_agr=np.stack([X['neighbour_agreement_'+v].to_numpy() for v in VARS],1); _conf=np.stack([X['neighbour_confidence_'+v].to_numpy() for v in VARS],1)
+_agr_mean=np.where(_out_any.any(1),(_agr*_out_any).sum(1)/np.maximum(_out_any.sum(1),1),0); _has_nb=((_conf>0)&_out_any).any(1)
+gate=(_n_out>=2)&_cons&_has_nb&(_agr_mean>=.5)&(X['t0_hard'].to_numpy()==0)&~gap_rule
+print('coherent-event gate rows',int(gate.sum()),'of which injected-fault rows',int((gate&(y==1)).sum()),flush=True)
 def ece(probs,truth,n_bins=10):
  probs=np.asarray(probs,dtype=float); truth=np.asarray(truth,dtype=float); edges=np.linspace(0,1,n_bins+1); total=len(probs); e=0.0
  for i in range(n_bins):
@@ -243,7 +258,7 @@ def ece(probs,truth,n_bins=10):
   if m.sum()==0: continue
   e+=(m.sum()/total)*abs(probs[m].mean()-truth[m].mean())
  return float(e)
-all_pred_raw=np.zeros(len(y)); all_cls_raw=np.full(len(y),'weather',object); cal_flag=np.zeros(len(y),bool); abl_flag={n:np.zeros(len(y),bool) for n in blocks}; abl_cls={n:np.full(len(y),'weather',object) for n in blocks}
+all_pred_nogate=np.zeros(len(y)); all_pred_gate=np.zeros(len(y)); all_pred_raw=np.zeros(len(y)); all_cls_raw=np.full(len(y),'weather',object); cal_flag=np.zeros(len(y),bool); abl_flag={n:np.zeros(len(y),bool) for n in blocks}; abl_cls={n:np.full(len(y),'weather',object) for n in blocks}
 # event table (one row per injected event) and per-fold test/train event counts, printed before any training
 time_ns=Xraw.time_utc.map(lambda t:t.value).to_numpy(); events=[]
 for (sid,var,cls,a,b),_ in labels.groupby(['station_id','variable','class','start','end']):
@@ -270,7 +285,19 @@ for fi,(tr,te) in enumerate(folds):
  w_tr=weight[tr]; s=scored[te]; ts=te[s]
  model.fit(X.iloc[tr][base_cols],y[tr],sample_weight=w_tr); p_train=model.predict_proba(X.iloc[tr][base_cols])[:,1]; p=model.predict_proba(X.iloc[te][base_cols])[:,1]
  p_raw=p; all_pred_raw[te]=p_raw  # model output before the deterministic F7 gap rule
- p=np.where(gap_rule[te],1.0,p); p_train=np.where(gap_rule[tr],1.0,p_train); pred=(p>=.5).astype(int); all_pred[te]=p
+ p=np.where(gap_rule[te],1.0,p); p_train=np.where(gap_rule[tr],1.0,p_train); p_nogate=p.copy(); all_pred_nogate[te]=p_nogate
+ p_gated=np.where(gate[te],np.minimum(p,.3),p); all_pred_gate[te]=p_gated
+ if GATE_ON: p=p_gated; p_train=np.where(gate[tr],np.minimum(p_train,.3),p_train)
+ pred=(p>=.5).astype(int); all_pred[te]=p
+ # operating point from TRAINING stations only: inner grouped CV -> out-of-fold P(fault) on training rows -> threshold that keeps
+ # alerts under 2 % of clean, unprotected training steps; applied unchanged to the test fold
+ inner=np.zeros(len(tr))
+ for itr,ite in GroupKFold(n_splits=4).split(tr,groups=groups[tr]):
+  im=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi).fit(X.iloc[tr[itr]][base_cols],y[tr[itr]],sample_weight=w_tr[itr])
+  inner[ite]=im.predict_proba(X.iloc[tr[ite]][base_cols])[:,1]
+ inner=np.where(gap_rule[tr],1.0,inner)
+ if GATE_ON: inner=np.where(gate[tr],np.minimum(inner,.3),inner)
+ cl_tr=(row_classes[tr]=='weather')&~protected[tr]&~native_gap[tr]; thr=float(np.quantile(inner[cl_tr],.98))
  if fi==0: fold0_model=model; fold0_te=te
  p_cal=IsotonicRegression(out_of_bounds='clip').fit(p_train[w_tr>0],y[tr][w_tr>0]).predict(p)
  # multiclass over fault classes, excluding weather if no data in train
@@ -287,6 +314,10 @@ for fi,(tr,te) in enumerate(folds):
  def met(a,b): return {'precision':float(precision_score(a,b,zero_division=0)),'recall':float(recall_score(a,b,zero_division=0)),'f1':float(f1_score(a,b,zero_division=0))}
  fm=met(y[ts],pred[s]); fm.update({'fold':fi+1,'n_test':int(len(ts)),'t0_f1':met(y[ts],t0[s])['f1'],'t0_no_gap_rule_f1':met(y[ts],t0_nogap[s])['f1'],'f1_no_gap_rule':met(y[ts],(p_raw>=.5)[s])['f1'],'iforest_f1':met(y[ts],ip[s])['f1'],'trivial_f1':met(y[ts],trivial[s])['f1'],'ece_raw':ece(p[s],y[ts]),'ece_calibrated':ece(p_cal[s],y[ts])}); fold_metrics.append(fm)
  # per-fold macro-F1 across F1-F9
+ cl_te=(row_classes[te]=='weather')&~protected[te]&~native_gap[te]; op=p>thr
+ fold_metrics[-1].update({'op_threshold':thr,'op_train_clean_alert_share':float((inner[cl_tr]>thr).mean()),'op_precision':met(y[ts],op[s])['precision'],'op_recall':met(y[ts],op[s])['recall'],'op_f1':met(y[ts],op[s])['f1'],
+  'op_alerts_per_1000_clean':float(1000*op[cl_te].mean()),'alerts_per_1000_clean_at_05':float(1000*pred[cl_te].mean()),'auc_pr':float(average_precision_score(y[ts],p[s])),
+  'precision_no_gate':met(y[ts],(p_nogate>=.5)[s])['precision'],'recall_no_gate':met(y[ts],(p_nogate>=.5)[s])['recall'],'f1_no_gate':met(y[ts],(p_nogate>=.5)[s])['f1'],'precision_gate':met(y[ts],(p_gated>=.5)[s])['precision'],'recall_gate':met(y[ts],(p_gated>=.5)[s])['recall'],'f1_gate':met(y[ts],(p_gated>=.5)[s])['f1']})
  fold_class_f1=[f1_score((row_classes[ts]==cls).astype(int),(cp[s]==cls).astype(int),zero_division=0) for cls in CLASSES]
  fold_metrics[-1]['macro_f1']=float(np.mean(fold_class_f1))
  # shortcut check: same binary head WITH raw calendar features, for paired comparison only
@@ -308,7 +339,7 @@ lat_rows=fold0_te[:500]; lat_times=[]
 for idx in lat_rows:
  row=X.iloc[[idx]][base_cols]; t_start=time.perf_counter(); fold0_model.predict_proba(row); lat_times.append((time.perf_counter()-t_start)*1000)
 # per-class metrics across folds using out-of-fold predictions (reported as one OOF estimate + fold spread for binary)
-metric_names=['f1_no_gap_rule','t0_no_gap_rule_f1','with_calendar_f1','precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']
+metric_names=['op_threshold','op_train_clean_alert_share','op_precision','op_recall','op_f1','op_alerts_per_1000_clean','alerts_per_1000_clean_at_05','auc_pr','precision_no_gate','recall_no_gate','f1_no_gate','precision_gate','recall_gate','f1_gate','f1_no_gap_rule','t0_no_gap_rule_f1','with_calendar_f1','precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']
 metrics={'config':CFG,'dataset':{'rows':int(len(inj)),'stations':int(inj.station_id.nunique()),'labels':int(len(labels)),'protected_rows':int(protected.sum())},'cv':{'folds':5,'grouped_by':'station','fold_station_counts':[int(len(np.unique(groups[te]))) for _,te in folds]},'metrics':{}}
 for n in metric_names:
  vals=[r[n] for r in fold_metrics if n in r]; metrics['metrics'][n]={'mean':float(np.mean(vals)),'std':float(np.std(vals,ddof=1) if len(vals)>1 else 0),'folds':vals}
@@ -385,6 +416,9 @@ def ext_rates(flag):
 metrics['natural_extremes']={'no_calendar':ext_rates(all_pred>=.5),'with_calendar':ext_rates(cal_flag),**{n:ext_rates(abl_flag[n]) for n in blocks}}
 metrics['confusion_matrix']={'labels':CLASSES+['weather'],'counts':cm_total.tolist()}
 metrics['latency_ms']={'p50':float(np.percentile(lat_times,50)),'p95':float(np.percentile(lat_times,95)),'n_timed':len(lat_times)}
+metrics['coherent_gate']={'enabled':GATE_ON,'gated_rows':int(gate.sum()),'gated_injected_fault_rows':int((gate&(y==1)).sum()),'false_alarms_per_1000_no_gate':{}}
+for wname in ['heatwave_a','biparjoy_a','monsoon_c']:
+ wm=(window_name==wname)&~native_gap; metrics['coherent_gate']['false_alarms_per_1000_no_gate'][wname]=float(1000*np.sum(all_pred_nogate[wm]>=.5)/wm.sum()); metrics['coherent_gate'].setdefault('false_alarms_per_1000_gate',{})[wname]=float(1000*np.sum(all_pred_gate[wm]>=.5)/wm.sum())
 metrics['false_alarms_per_1000_by_window']={}
 for wname in ['heatwave_a','biparjoy_a','monsoon_c']:
  wm=(window_name==wname)&~native_gap; n_obs=int(wm.sum())
@@ -439,6 +473,14 @@ lines += ['', '## Baselines on the current benchmark (same evaluation definition
  f"| Isolation Forest (contamination = training-fold prevalence) | {ms('iforest_f1')} |", f"| Always fault | {ms('trivial_f1')} |"]
 lines += ['', '| F7 | Injected-gap recall | Precision (native gaps excluded) | Precision (native gaps counted as negatives) | Native-gap rows called F7 |', '|---|---:|---:|---:|---:|']
 for k,r in metrics['f7_check'].items(): lines.append(f"| {k} | {r['injected_gap_recall']:.3f} | {r['precision_excluding_native_gaps']:.3f} | {r['precision_including_native_gaps']:.3f} | {r['native_gap_rows_called_f7']:,} / {r['native_gap_rows']:,} |")
+cg=metrics['coherent_gate']
+lines += ['', '## Coherent-event gate (spec section 8)', '', f"Gate enabled: {cg['enabled']}. Rows gated: {cg['gated_rows']:,}, of which injected-fault rows: {cg['gated_injected_fault_rows']:,}.", '', '| | Without gate | With gate |', '|---|---:|---:|',
+ f"| Binary precision | {ms('precision_no_gate')} | {ms('precision_gate')} |", f"| Binary recall | {ms('recall_no_gate')} | {ms('recall_gate')} |", f"| Binary F1 | {ms('f1_no_gate')} | {ms('f1_gate')} |"]
+for wname in cg['false_alarms_per_1000_no_gate']: lines.append(f"| False alarms / 1,000, {wname} | {cg['false_alarms_per_1000_no_gate'][wname]:.2f} | {cg['false_alarms_per_1000_gate'][wname]:.2f} |")
+lines.append('' if cg['enabled'] else '\nGate NOT applied to the reported model: it lowers fault recall (rule: revert if any window or fault recall gets worse).')
+lines += ['', '## Operating point (threshold from training folds only)', '', 'Per outer fold: 4-fold grouped CV inside the training stations gives out-of-fold P(fault) on training rows; the threshold is the 98th percentile of P(fault) on clean, unprotected training steps (alerts under 2 %), applied unchanged to the test fold. Clean steps = no injected fault, outside protected windows, not native gaps.', '',
+ '| | At training-fold threshold | At 0.5 |', '|---|---:|---:|', f"| Threshold | {ms('op_threshold')} | 0.5 |", f"| Precision | {ms('op_precision')} | {ms('precision')} |", f"| Recall | {ms('op_recall')} | {ms('recall')} |", f"| F1 | {ms('op_f1')} | {ms('f1')} |",
+ f"| Alerts / 1,000 clean test steps | {ms('op_alerts_per_1000_clean')} | {ms('alerts_per_1000_clean_at_05')} |", f"| AUC-PR (threshold-free) | {ms('auc_pr')} | |", '', f"Clean-step alert share on the training rows at the chosen threshold: {ms('op_train_clean_alert_share')}."]
 lines += ['', '## Calendar shortcut check and placebo windows', '', f"Fusion heads exclude {CAL_COLS}. The with-calendar binary head is refit per fold for comparison only. Placebo windows = each protected window shifted +182 days, in both clusters (faults occur there).", '', '| Window | Obs | Clean alerts/1,000 (no calendar) | Clean alerts/1,000 (with calendar) | Fault rows | Fault-row recall (no calendar) | Fault-row recall (with calendar) |', '|---|---:|---:|---:|---:|---:|---:|']
 cc=metrics['calendar_check']
 for nm,r in cc['no_calendar'].items(): r2=cc['with_calendar'][nm]; lines.append(f"| {nm} | {r['n_obs']:,} | {r['clean_alerts_per_1000']:.2f} | {r2['clean_alerts_per_1000']:.2f} | {r.get('n_fault_rows','')} | {fmt(r.get('fault_row_recall'))} | {fmt(r2.get('fault_row_recall'))} |")
@@ -473,6 +515,24 @@ explainer_cache={}
 def get_explainer(fi):
  if fi not in explainer_cache: explainer_cache[fi]=shap.TreeExplainer(fold_models[fi])
  return explainer_cache[fi]
+def tier_of(f):
+ if f in ('t0_hard','t0_soft','is_missing','gap_length_before') or f.endswith(('_range_flag','_step_flag','_zero4','_missing','_step_limit')): return 'T0'
+ if f.startswith(('z1_','t1_q','slow_t1_')): return 'T1'
+ if f.startswith(('z2_','t2_q','slow_t2_')) or f in ('vapour_pressure','e_jump','dewpoint_excess'): return 'T2'
+ if f.startswith(('z3_','neighbour_','slow_t3_')): return 'T3'
+ return 'raw/other'
+def is_slow(f): return f.startswith('slow_') and not f.endswith(('_res','_varratio'))
+WIT_Z=3.0  # |healthy-baselined residual| above which a tier "objects"; fixed, not tuned
+def witnesses(i):
+ obj=[]; quiet=[]; abst=[]
+ (obj if X.at[i,'t0_hard']>0 or X.at[i,'t0_soft']>0 or gap_rule[i] else quiet).append('T0 rules')
+ for tier,name in (('t1','T1 station history'),('t2','T2 cross-variable'),('t3','T3 neighbours')):
+  if tier=='t3' and all(X.at[i,'neighbour_confidence_'+v]==0 for v in VARS): abst.append(name); continue
+  z={v:abs(float(X.at[i,f'slow_{tier}_{v}_res'])) for v in VARS}; v=max(z,key=z.get)
+  (obj if z[v]>WIT_Z else quiet).append(f"{name} ({v} {z[v]:.1f} sigma)")
+ zs=max(abs(float(X.at[i,f'slow_{t}_{v}_rmean24'])) for t in ('t1','t3') for v in VARS)
+ (obj if zs>WIT_Z else quiet).append(f"slow-signal (24-step mean {zs:.1f} sigma)")
+ return 'Objected: '+(', '.join(obj) or 'none')+'. Did not object: '+(', '.join(quiet) or 'none')+('. Abstained: '+', '.join(abst) if abst else '')+'.'
 def explain_rows(idxs):
  out={}
  idxs=np.asarray(idxs)
@@ -488,7 +548,7 @@ def explain_rows(idxs):
     f=base_cols[oi]; top.append({'feature':f,'shap':float(sv[k,oi])})
    phrases=[describe_feature(t['feature'],float(rows.iloc[k][t['feature']])) for t in top]
    explanation=('; '.join(phrases)+f'. Root cause: {all_cls[i]}.') if phrases else f'Fusion model flagged this row (root cause: {all_cls[i]}); no single dominant positive factor.'
-   out[i]=(explanation,top)
+   out[i]=(explanation+' '+witnesses(i),top)
  return out
 def impute_value(sid,t,v):
  sid=str(sid); month=int(t.month); hour=int(t.hour)
@@ -518,6 +578,23 @@ def tier_scores_for(i):
          **{f'z3_{v}':_safe_round(X.at[i,f'z3_{v}']) for v in VARS}}
 
 sample_out=Xraw[['station_id','time_utc']+VARS].copy(); sample_out['p_fault']=all_pred; sample_out['root_cause']=all_cls; sample_out['severity']=pd.cut(sample_out.p_fault,[-1,.3,.5,.75,.9,2],labels=['low','low','medium','high','critical'],ordered=False).astype(str); sample_out['model_version']='fusion-3h-0.1'
+# explanation quality: for flagged injected-fault rows, does the top SHAP factor come from the tier that should decide the class?
+EXPECTED={'F1':'T1','F2':'T0 or T2','F3':'T3 or slow-signal','F4':'T3 or slow-signal','F9':'T2'}
+def _match(c,f):
+ t=tier_of(f)
+ return {'F1':t=='T1','F2':t in ('T0','T2'),'F3':t=='T3' or is_slow(f),'F4':t=='T3' or is_slow(f),'F9':t=='T2'}.get(c)
+eq_rng=np.random.default_rng(SEED); metrics['explanation_quality']={}
+for c in CLASSES:
+ cand=np.flatnonzero((row_classes==c)&scored&(all_pred>=.5)&~gap_rule)
+ if not len(cand): metrics['explanation_quality'][c]={'n_alerts':0}; continue
+ pick=np.sort(eq_rng.choice(cand,min(300,len(cand)),replace=False)); ex=explain_rows(pick); tops=[ex[i][1][0]['feature'] if ex[i][1] else None for i in pick]
+ dist=pd.Series([tier_of(f)+(' (slow)' if is_slow(f) else '') if f else 'none' for f in tops]).value_counts(normalize=True).round(3).to_dict()
+ m=[_match(c,f) for f in tops if f]
+ metrics['explanation_quality'][c]={'n_alerts':int(len(cand)),'n_explained':int(len(pick)),'expected_tier':EXPECTED.get(c),'share_top_factor_from_expected_tier':float(np.mean(m)) if c in EXPECTED and m else None,'top_factor_tier_distribution':dist}
+with open(OUT/'metrics.json','w') as f: json.dump(metrics,f,indent=2,allow_nan=False,default=lambda x: x.item() if isinstance(x,np.generic) else str(x))
+eqlines=['', '## Explanation quality (top SHAP factor of the binary head, flagged injected-fault rows, up to 300 per class)', '', '| Class | Alerts | Explained | Expected tier | Share with top factor from expected tier | Top-factor tier distribution |', '|---|---:|---:|---|---:|---|']
+for c,r in metrics['explanation_quality'].items(): eqlines.append(f"| {c} | {r['n_alerts']:,} | {r.get('n_explained',0)} | {r.get('expected_tier') or '-'} | {fmt(r.get('share_top_factor_from_expected_tier'))} | {r.get('top_factor_tier_distribution','')} |")
+with open(OUT/'benchmark_report.md','a') as f: f.write('\n'.join(eqlines)+'\n')
 stream=sample_out[sample_out.time_utc>=sample_out.time_utc.max()-pd.Timedelta(days=14)].copy()
 stream_idx=stream.index.to_numpy()
 expl_by_idx=explain_rows(stream_idx)

@@ -11,7 +11,7 @@
     "p_fault": 0.9973961186432065,
     "severity": "critical",
     "root_cause": "F1",
-    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=14.4); z_max=14.45 contributed. Root cause: F1.",
+    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=14.4); z_max=14.45 contributed. Root cause: F1. Objected: T0 rules, T1 station history (temp_c 37.6 sigma), T2 cross-variable (temp_c 10.1 sigma), T3 neighbours (temp_c 7.7 sigma), slow-signal (24-step mean 59.7 sigma). Did not object: none.",
     "top_factors": [
       {
         "feature": "t0_soft",
@@ -60,7 +60,7 @@
     "p_fault": 0.9991480685902923,
     "severity": "critical",
     "root_cause": "F2",
-    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=4.0); t1_rh_pct_varratio shows a sustained bias, drift or variance change (0.00). Root cause: F2.",
+    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=4.0); t1_rh_pct_varratio shows a sustained bias, drift or variance change (0.00). Root cause: F2. Objected: T0 rules, T2 cross-variable (temp_c 9.8 sigma), T3 neighbours (rh_pct 6.8 sigma). Did not object: T1 station history (temp_c 1.7 sigma), slow-signal (24-step mean 2.7 sigma).",
     "top_factors": [
       {
         "feature": "t0_soft",
@@ -109,7 +109,7 @@
     "p_fault": 0.9919643803348299,
     "severity": "critical",
     "root_cause": "F3",
-    "explanation": "temp_c is inconsistent with the station's other variables (z=20.8); t2_temp_c_varratio shows a sustained bias, drift or variance change (19.79); z_max=20.80 contributed. Root cause: F3.",
+    "explanation": "temp_c is inconsistent with the station's other variables (z=20.8); t2_temp_c_varratio shows a sustained bias, drift or variance change (19.79); z_max=20.80 contributed. Root cause: F3. Objected: T1 station history (temp_c 63.5 sigma), T2 cross-variable (temp_c 13.0 sigma), T3 neighbours (temp_c 10.3 sigma), slow-signal (24-step mean 57.2 sigma). Did not object: T0 rules.",
     "top_factors": [
       {
         "feature": "z2_temp_c",
@@ -156,7 +156,7 @@
     "p_fault": 0.9934101398269148,
     "severity": "critical",
     "root_cause": "F4",
-    "explanation": "t2_temp_c_varratio shows a sustained bias, drift or variance change (2.20); temp_c is inconsistent with the station's other variables (z=3.1); e_jump=8.86 contributed. Root cause: F4.",
+    "explanation": "t2_temp_c_varratio shows a sustained bias, drift or variance change (2.20); temp_c is inconsistent with the station's other variables (z=3.1); e_jump=8.86 contributed. Root cause: F4. Objected: none. Did not object: T0 rules, T1 station history (mslp_hpa 0.3 sigma), T2 cross-variable (temp_c 2.1 sigma), T3 neighbours (mslp_hpa 2.4 sigma), slow-signal (24-step mean 2.8 sigma).",
     "top_factors": [
       {
         "feature": "slow_t2_temp_c_varratio",
@@ -203,7 +203,7 @@
     "p_fault": 0.9988860246546962,
     "severity": "critical",
     "root_cause": "F5",
-    "explanation": "a soft step-limit or frozen-value rule fired; t2_mslp_hpa_varratio shows a sustained bias, drift or variance change (9.56); t3_mslp_hpa_res shows a sustained bias, drift or variance change (-28.59). Root cause: F5.",
+    "explanation": "a soft step-limit or frozen-value rule fired; t2_mslp_hpa_varratio shows a sustained bias, drift or variance change (9.56); t3_mslp_hpa_res shows a sustained bias, drift or variance change (-28.59). Root cause: F5. Objected: T0 rules, T1 station history (mslp_hpa 129.6 sigma), T2 cross-variable (mslp_hpa 14.4 sigma), T3 neighbours (mslp_hpa 28.6 sigma), slow-signal (24-step mean 30.7 sigma). Did not object: none.",
     "top_factors": [
       {
         "feature": "t0_soft",
@@ -252,7 +252,7 @@
     "p_fault": 0.9997002234684409,
     "severity": "critical",
     "root_cause": "F6",
-    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=25.7); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.82). Root cause: F6.",
+    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=25.7); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.82). Root cause: F6. Objected: T0 rules, T1 station history (temp_c 563.6 sigma), T2 cross-variable (temp_c 30.4 sigma), T3 neighbours (temp_c 24.4 sigma), slow-signal (24-step mean 468.0 sigma). Did not object: none.",
     "top_factors": [
       {
         "feature": "t0_soft",
@@ -301,7 +301,7 @@
     "p_fault": 1.0,
     "severity": "critical",
     "root_cause": "F7",
-    "explanation": "temp_c is inconsistent with the station's other variables (z=nan); rh_pct is inconsistent with the station's other variables (z=nan); rh_pct deviates nan sigma from this station's own recent history. Root cause: F7.",
+    "explanation": "temp_c is inconsistent with the station's other variables (z=nan); rh_pct is inconsistent with the station's other variables (z=nan); rh_pct deviates nan sigma from this station's own recent history. Root cause: F7. Objected: T0 rules. Did not object: T1 station history (temp_c 0.0 sigma), T2 cross-variable (temp_c 0.0 sigma), T3 neighbours (temp_c 0.0 sigma), slow-signal (24-step mean 0.0 sigma).",
     "top_factors": [
       {
         "feature": "z2_temp_c",
@@ -348,7 +348,7 @@
     "p_fault": 0.9976580936547994,
     "severity": "critical",
     "root_cause": "F8",
-    "explanation": "a soft step-limit or frozen-value rule fired; rh_pct is inconsistent with the station's other variables (z=-14.7); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.28). Root cause: F8.",
+    "explanation": "a soft step-limit or frozen-value rule fired; rh_pct is inconsistent with the station's other variables (z=-14.7); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.28). Root cause: F8. Objected: T0 rules, T1 station history (rh_pct 102.1 sigma), T2 cross-variable (rh_pct 11.3 sigma), T3 neighbours (rh_pct 11.8 sigma), slow-signal (24-step mean 12.6 sigma). Did not object: none.",
     "top_factors": [
       {
         "feature": "t0_soft",
@@ -397,7 +397,7 @@
     "p_fault": 0.9965650683432834,
     "severity": "critical",
     "root_cause": "F9",
-    "explanation": "a soft step-limit or frozen-value rule fired; mslp_hpa_roll8_std=11.69 contributed; t3_mslp_hpa_rmean8 shows a sustained bias, drift or variance change (-6.50). Root cause: F9.",
+    "explanation": "a soft step-limit or frozen-value rule fired; mslp_hpa_roll8_std=11.69 contributed; t3_mslp_hpa_rmean8 shows a sustained bias, drift or variance change (-6.50). Root cause: F9. Objected: T0 rules, T2 cross-variable (mslp_hpa 10.2 sigma), T3 neighbours (mslp_hpa 15.8 sigma), slow-signal (24-step mean 4.5 sigma). Did not object: T1 station history (rh_pct 1.7 sigma).",
     "top_factors": [
       {
         "feature": "t0_soft",
@@ -446,7 +446,7 @@
     "p_fault": 1.0,
     "severity": "critical",
     "root_cause": "F7",
-    "explanation": "temp_c is inconsistent with the station's other variables (z=nan); rh_pct is inconsistent with the station's other variables (z=nan); rh_pct deviates nan sigma from this station's own recent history. Root cause: F7.",
+    "explanation": "temp_c is inconsistent with the station's other variables (z=nan); rh_pct is inconsistent with the station's other variables (z=nan); rh_pct deviates nan sigma from this station's own recent history. Root cause: F7. Objected: T0 rules. Did not object: T1 station history (temp_c 0.0 sigma), T2 cross-variable (temp_c 0.0 sigma), T3 neighbours (temp_c 0.0 sigma), slow-signal (24-step mean 0.0 sigma).",
     "top_factors": [
       {
         "feature": "z2_temp_c",
