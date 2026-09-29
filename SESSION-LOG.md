@@ -244,3 +244,37 @@ count, which suggests the head spends capacity on timing noise.
 
 Not done (stop rule): Stage 3 (more stations), Stage 4 (monsoon diagnosis, coherent-event gate,
 training-fold operating point, AUC-PR).
+
+## fix/detectability — Stage A: calendar shortcut check, placebo windows, natural extremes
+
+Change: fusion heads (binary and multiclass) no longer get `hour_sin/cos`, `doy_sin/cos` or the
+month-hour climatology lookup `*_clim_mu` (a calendar proxy added as a T2 input in Stage 2). T1/T2
+keep time features as forecasters. A with-calendar binary head is refit per fold for comparison.
+Placebo windows: each protected window shifted +182 days, in both clusters (fixed rule, chosen
+before results; faults occur inside them). `make all` and pytest pass.
+
+| | With calendar (Stage 2) | No calendar (default) |
+|---|---:|---:|
+| Binary F1 (fold mean) | 0.694 | 0.694 |
+| Macro-F1 (OOF) | 0.581 | 0.587 |
+| Alerts / 1,000 clean steps | 21.6 | 23.3 |
+| Clean alerts / 1,000: heatwave_a / biparjoy_a / monsoon_c | 1.9 / 0 / 0 | 1.9 / 0 / 0 |
+| Placebo windows (6), clean alerts / 1,000 | 3.4-14.2 | 3.4-22.1 |
+
+Calendar features were not the shortcut: protected-window false alarms are identical with and
+without them, and recall did not collapse (0.685 -> 0.694), so no-calendar stays the default.
+But the protected windows are still much quieter than ordinary clean data (0-1.9 vs 23.6 per
+1,000). Placebo windows at other times of year land at 3.4-22.1, closer to ordinary data.
+A second, unintended effect explains part of the gap: causal rolling features spill over after an
+event ends. Clean rows 1-8 steps after an event alert at 142.6 per 1,000; 9-24 steps 25.5;
+more than 112 steps 17.9. Protected rows sit a median 259 steps from any event, so they never
+get spillover. Even against the 17.9 far-from-event rate, the protected windows are quieter;
+likely real (heatwave and monsoon are spatially coherent, so neighbour residuals are small), but
+unproven. The low protected-window numbers should not be read as a general false-alarm rate.
+
+Natural extremes (clean rows only, test folds, fold mean alerts per 1,000; all clean = 22.5):
+top 0.5 % temp 7.4 (519 rows, 0.33x), bottom 0.5 % MSLP 13.5 (487 rows, 0.60x), top 0.5 % 3-step
+change in any variable 54.7 (1,308 rows, 2.44x), bottom 0.5 % 3-step change 44.8 (1,372 rows,
+1.99x). None exceeds 3x clean. Level extremes are alerted less than ordinary rows; fast changes
+about 2x. With calendar features the change rows are 45.4 / 40.6. Removing a tier does not bring
+change-row alerts down much (no T2: 46.0 top change); no single tier drives them.

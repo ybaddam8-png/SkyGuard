@@ -32,6 +32,10 @@ if labels.empty: raise RuntimeError('injector produced no labels')
 labels.to_parquet(BENCH/'labels.parquet',index=False); inj.to_parquet(BENCH/'observations_injected.parquet',index=False)
 # per variable labels, row-level class is first injected class; preserve multi-faults
 label_map={(str(r.station_id),pd.Timestamp(r.time_utc),str(r.variable)):r['class'] for _,r in labels.iterrows()}
+placebo=np.zeros(len(clean),bool); placebo_name=np.full(len(clean),'',dtype=object)
+for name,_,a,b in windows:
+ for c in ('a','c'):
+  m=((clean.cluster==c)&clean.time_utc.between(a+pd.Timedelta(days=182),b+pd.Timedelta(days=182),inclusive='both')).to_numpy(); placebo|=m; placebo_name[m]=f'placebo_{name}_{c}'
 # ---------- learned limits, climatology, neighbours ----------
 limits={}; clim={}
 for sid,g in clean.groupby('station_id'):
@@ -208,7 +212,10 @@ X['t0_hard']=X[[c for c in X if c.endswith('_range_flag')]].max(axis=1); X['t0_s
 folds=list(GroupKFold(n_splits=5).split(X,y,groups=groups)); fold_metrics=[]; all_pred=np.zeros(len(y)); all_cls=np.full(len(y),'weather',object); cm_total=np.zeros((10,10),int); fold_feature_importance=[]; fold_of_row=np.zeros(len(y),int); fold_models=[]
 # baseline T0 and isolation forest per fold; ablations train fusion with selected evidence blocks
 blocks={'no_T1':[c for c in X.columns if c.startswith(('z1_','t1_q','slow_t1_'))],'no_T2':[c for c in X.columns if c.startswith(('z2_','t2_q','slow_t2_'))],'no_T3':[c for c in X.columns if c.startswith(('z3_','neighbour_','slow_t3_'))]}
-base_cols=[c for c in X.columns if c not in ['station_code'] and not c.startswith('r3_')]
+# fusion heads get no raw calendar features (spec section 8 lists none): protected windows sit at fixed times of year and never
+# hold injected faults, so time of year is a shortcut. T1/T2 keep time features as forecasters. *_clim_mu is a month-hour lookup.
+CAL_COLS=['hour_sin','hour_cos','doy_sin','doy_cos']+[v+'_clim_mu' for v in VARS]
+base_cols=[c for c in X.columns if c not in ['station_code']+CAL_COLS and not c.startswith('r3_')]
 def ece(probs,truth,n_bins=10):
  probs=np.asarray(probs,dtype=float); truth=np.asarray(truth,dtype=float); edges=np.linspace(0,1,n_bins+1); total=len(probs); e=0.0
  for i in range(n_bins):
@@ -216,7 +223,7 @@ def ece(probs,truth,n_bins=10):
   if m.sum()==0: continue
   e+=(m.sum()/total)*abs(probs[m].mean()-truth[m].mean())
  return float(e)
-abl_flag={n:np.zeros(len(y),bool) for n in blocks}; abl_cls={n:np.full(len(y),'weather',object) for n in blocks}
+cal_flag=np.zeros(len(y),bool); abl_flag={n:np.zeros(len(y),bool) for n in blocks}; abl_cls={n:np.full(len(y),'weather',object) for n in blocks}
 # event table (one row per injected event) and per-fold test/train event counts, printed before any training
 time_ns=Xraw.time_utc.map(lambda t:t.value).to_numpy(); events=[]
 for (sid,var,cls,a,b),_ in labels.groupby(['station_id','variable','class','start','end']):
@@ -260,6 +267,9 @@ for fi,(tr,te) in enumerate(folds):
  # per-fold macro-F1 across F1-F9
  fold_class_f1=[f1_score((row_classes[ts]==cls).astype(int),(cp[s]==cls).astype(int),zero_division=0) for cls in CLASSES]
  fold_metrics[-1]['macro_f1']=float(np.mean(fold_class_f1))
+ # shortcut check: same binary head WITH raw calendar features, for paired comparison only
+ cm_=LGBMClassifier(n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,class_weight='balanced',verbosity=-1,random_state=SEED+fi).fit(X.iloc[tr][base_cols+CAL_COLS],y[tr],sample_weight=w_tr)
+ cal_flag[te]=gap_rule[te]|(cm_.predict_proba(X.iloc[te][base_cols+CAL_COLS])[:,1]>=.5); fold_metrics[-1]['with_calendar_f1']=float(f1_score(y[ts],cal_flag[ts],zero_division=0))
  # ablation quick models: cols drop the named tier's own feature columns
  for name,drop in blocks.items():
   cols=[c for c in base_cols if c not in drop]
@@ -276,7 +286,7 @@ lat_rows=fold0_te[:500]; lat_times=[]
 for idx in lat_rows:
  row=X.iloc[[idx]][base_cols]; t_start=time.perf_counter(); fold0_model.predict_proba(row); lat_times.append((time.perf_counter()-t_start)*1000)
 # per-class metrics across folds using out-of-fold predictions (reported as one OOF estimate + fold spread for binary)
-metric_names=['precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']
+metric_names=['with_calendar_f1','precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']
 metrics={'config':CFG,'dataset':{'rows':int(len(inj)),'stations':int(inj.station_id.nunique()),'labels':int(len(labels)),'protected_rows':int(protected.sum())},'cv':{'folds':5,'grouped_by':'station','fold_station_counts':[int(len(np.unique(groups[te]))) for _,te in folds]},'metrics':{}}
 for n in metric_names:
  vals=[r[n] for r in fold_metrics if n in r]; metrics['metrics'][n]={'mean':float(np.mean(vals)),'std':float(np.std(vals,ddof=1) if len(vals)>1 else 0),'folds':vals}
@@ -319,6 +329,33 @@ metrics['per_class_f1_by_variant']={n:{c:float(f1_score((row_classes[scored]==c)
 metrics['ablation_paired']={n:{'diffs_full_minus_ablated':[a-b for a,b in zip(metrics['metrics']['f1']['folds'],metrics['metrics'][n+'_f1']['folds'])]} for n in blocks}
 for n,r in metrics['ablation_paired'].items(): d=np.array(r['diffs_full_minus_ablated']); r.update({'mean':float(d.mean()),'std':float(d.std(ddof=1)),'folds_ablated_ge_full':int((d<=0).sum())})
 metrics['fold_test_events']={'per_fold':ev_counts.to_dict('index'),'min_max_per_class':{c:[int(ev_counts[c].min()),int(ev_counts[c].max())] for c in CLASSES},'min_train_events_per_class':train_min,'fold_stations':{str(fi+1):sorted(str(s) for s in np.unique(groups[te])) for fi,(_,te) in enumerate(folds)}}
+def window_rates(flag):
+ clean_rows=(row_classes=='weather')&~native_gap; out={}
+ for nm in sorted(set(window_name[window_name!='']))+sorted(set(placebo_name[placebo_name!=''])):
+  wm=((window_name==nm)|(placebo_name==nm))&~native_gap; cw=wm&clean_rows; fr=wm&(y==1)&scored
+  out[nm]={'n_obs':int(wm.sum()),'clean_alerts_per_1000':float(1000*flag[cw].sum()/max(cw.sum(),1)),'n_fault_rows':int(fr.sum()),'fault_row_recall':float(flag[fr].mean()) if fr.any() else None}
+ outside=clean_rows&~protected&~placebo; out['all_other_clean']={'n_obs':int(outside.sum()),'clean_alerts_per_1000':float(1000*flag[outside].sum()/outside.sum())}
+ return out
+metrics['calendar_check']={'fusion_excludes':CAL_COLS,'placebo_rule':'each protected window shifted +182 days, applied in both clusters; faults are injected there as anywhere else',
+ 'no_calendar':window_rates(all_pred>=.5),'with_calendar':window_rates(cal_flag),'with_calendar_alerts_per_1000_clean':event_eval(cal_flag,all_cls)['alerts_per_1000_outside_events_and_protected']}
+# natural extremes on the clean base (rows with no injected fault, not native gaps; inside and outside protected windows).
+# Per-station thresholds on clean values; nothing is tuned on these rows.
+cb=clean.groupby('station_id'); clean_base=(row_classes=='weather')&~native_gap
+ext={'temp_top0.5pct':(clean.temp_c>=cb.temp_c.transform(lambda z:z.quantile(.995))).fillna(False).to_numpy(dtype=bool),'mslp_bottom0.5pct':(clean.mslp_hpa<=cb.mslp_hpa.transform(lambda z:z.quantile(.005))).fillna(False).to_numpy(dtype=bool)}
+ch_top=np.zeros(len(clean),bool); ch_bot=np.zeros(len(clean),bool)
+for v in VARS:
+ d3=cb[v].diff(3); g3=d3.groupby(clean.station_id)
+ ch_top|=(d3>=g3.transform(lambda z:z.quantile(.995))).fillna(False).to_numpy(dtype=bool); ch_bot|=(d3<=g3.transform(lambda z:z.quantile(.005))).fillna(False).to_numpy(dtype=bool)
+ext['change3_top0.5pct_any_var']=ch_top; ext['change3_bottom0.5pct_any_var']=ch_bot
+ext['any_extreme']=ext['temp_top0.5pct']|ext['mslp_bottom0.5pct']|ch_top|ch_bot; ext['all_clean']=np.ones(len(clean),bool)
+def ext_rates(flag):
+ out={}
+ for k,m in ext.items():
+  m=m&clean_base; r=[1000*flag[te][m[te]].mean() for _,te in folds if m[te].any()]
+  out[k]={'n_rows':int(m.sum()),'alerts_per_1000_fold_mean':float(np.mean(r)),'fold_std':float(np.std(r,ddof=1))}
+ for k in out: out[k]['ratio_to_clean']=out[k]['alerts_per_1000_fold_mean']/max(out['all_clean']['alerts_per_1000_fold_mean'],1e-9)
+ return out
+metrics['natural_extremes']={'no_calendar':ext_rates(all_pred>=.5),'with_calendar':ext_rates(cal_flag),**{n:ext_rates(abl_flag[n]) for n in blocks}}
 metrics['confusion_matrix']={'labels':CLASSES+['weather'],'counts':cm_total.tolist()}
 metrics['latency_ms']={'p50':float(np.percentile(lat_times,50)),'p95':float(np.percentile(lat_times,95)),'n_timed':len(lat_times)}
 metrics['false_alarms_per_1000_by_window']={}
@@ -367,6 +404,12 @@ lines += ['', '| Variant | '+' | '.join(CLASSES)+' |','|---|'+'---:|'*len(CLASSE
 for n,r in metrics['per_class_f1_by_variant'].items(): lines.append(f"| {n} F1 | "+' | '.join(f'{r[c]:.3f}' for c in CLASSES)+' |')
 for n,r in ev.items(): lines.append(f"| {n} event recall | "+' | '.join(fmt(r['per_class'][c]['recall']) for c in CLASSES)+' |')
 for n,r in ev.items(): lines.append(f"| {n} class-correct event recall | "+' | '.join(fmt(r['per_class'][c]['recall_class_correct']) for c in CLASSES)+' |')
+lines += ['', '## Calendar shortcut check and placebo windows', '', f"Fusion heads exclude {CAL_COLS}. The with-calendar binary head is refit per fold for comparison only. Placebo windows = each protected window shifted +182 days, in both clusters (faults occur there).", '', '| Window | Obs | Clean alerts/1,000 (no calendar) | Clean alerts/1,000 (with calendar) | Fault rows | Fault-row recall (no calendar) | Fault-row recall (with calendar) |', '|---|---:|---:|---:|---:|---:|---:|']
+cc=metrics['calendar_check']
+for nm,r in cc['no_calendar'].items(): r2=cc['with_calendar'][nm]; lines.append(f"| {nm} | {r['n_obs']:,} | {r['clean_alerts_per_1000']:.2f} | {r2['clean_alerts_per_1000']:.2f} | {r.get('n_fault_rows','')} | {fmt(r.get('fault_row_recall'))} | {fmt(r2.get('fault_row_recall'))} |")
+lines += ['', '## Natural extremes on clean rows (test folds, fold mean ± std, alerts per 1,000)', '', 'Per-station top 0.5 % temp, bottom 0.5 % MSLP, top/bottom 0.5 % 3-step change in any variable; rows with no injected fault and no native gap. Tier columns show the rate when that tier is removed (which tier drives extreme alerts).', '', '| Group | Rows | No calendar (default) | With calendar | Ratio to clean (default) | No T1 | No T2 | No T3 |', '|---|---:|---:|---:|---:|---:|---:|---:|']
+ne=metrics['natural_extremes']
+for k,r in ne['no_calendar'].items(): lines.append(f"| {k} | {r['n_rows']:,} | {r['alerts_per_1000_fold_mean']:.1f} ± {r['fold_std']:.1f} | {ne['with_calendar'][k]['alerts_per_1000_fold_mean']:.1f} | {r['ratio_to_clean']:.2f} | "+' | '.join(f"{ne[n][k]['alerts_per_1000_fold_mean']:.1f}" for n in blocks)+' |')
 ft=metrics['fold_test_events']; lines += ['', '## Fold event counts', '', f"Min/max test events per class across folds: {ft['min_max_per_class']}. Min train events per class: {ft['min_train_events_per_class']}. Fold stations (GroupKFold default assignment, no reassignment needed): {ft['fold_stations']}."]
 lines += ['', '## Neighbour policy', '', 'Primary links use 200 km / 500 m. Stations with fewer than two primary neighbours use sparse links widened to 300 km / 800 m and a 0.7 T3 confidence multiplier. A station with zero links makes T3 abstain and fusion treats T3 as missing.', '', '## Honest limitations', '', 'The benchmark is an injected-data estimate over a small 12-station network with substantial native gaps. Results below specification targets, if any, are reported without tuning them away.', '', '## Figures', '', '- `outputs/figures/per_class_f1.png`', '- `outputs/figures/ablation.png`', '- `outputs/figures/confusion_matrix.png`', '- `outputs/figures/example_fault_spans.png`', '- `outputs/figures/heatwave_no_injection.png`']
 (OUT/'benchmark_report.md').write_text('\n'.join(lines)+'\n')
