@@ -330,11 +330,19 @@ file, `stations.csv` and the figures into `client/src/data/`.
   with all three variables missing are dropped, except the injected gap of the F7 event. Each
   segment carries its row and alert counts. The dashboard's tier-consensus panel and the alert
   sentence are both built from the same witness flags.
-- Sensor health (in `replay_stream.json`, `health`): spec F-10,
+- Sensor health (in `replay_stream.json`, `health`; code in `src/health.py`): spec F-10,
   `H = 100*(1 - min(1, 0.5*|b|/tau + 0.3*f30 + 0.2*max(0, sigma_r/sigma_ref - 1)))` per
   station-variable as of the sensor's last observation, on the T3 neighbour residual of the scored
   stream. b = EWMA of the residual (spec lambda 0.02 per hour, applied as 1-(0.98)^3 per 3-h step),
-  tau = 0.5 C / 5 % RH / 0.5 hPa, f30 = share of observed steps with P(fault) >= 0.5 in the last
-  30 days, sigma_r = residual std over the last 30 days, sigma_ref = healthy-period residual std.
-  The stream contains injected faults, so injected F6/F8 values inflate sigma_r and most stations
-  score low; a variable with no observations is reported as "no data", not a score.
+  f30 = share of observed steps with P(fault) >= 0.5 in the last 30 days, sigma_r = residual std
+  over the last 30 days, sigma_ref = healthy-period residual std. Weights are the spec's.
+  **Deviation from the spec:** tau = max(spec tolerance 0.5 C / 5 % RH / 0.5 hPa, 3 x the
+  healthy-period std of the EWMA bias of that station-variable), computed on the clean
+  (non-injected) stream only. Reason (`src/health_diagnosis.py`, `outputs/health_diagnosis.json`):
+  on clean data the EWMA bias has a median std of 0.70 C, 4.7 % RH and 0.54 hPa, i.e. about one
+  tolerance, so with the spec tau the bias term saturates on clean stretches (median H 58.6, 20 %
+  of clean steps at H = 0). Acceptance test, 30-day windows ending on an injected F3/F4 bias (74)
+  vs clean windows (744): AUC-ROC 0.769 with the spec tau and 0.799 with tau_eff; median H 0 vs
+  53 (spec) and 49 vs 84 (tau_eff); clean station-variables with median H >= 80: 2 % (spec) vs
+  76 % (tau_eff). A variable with no observations is reported as "no data", not a score.
+  Days-to-maintenance is not computed or shown.

@@ -651,7 +651,7 @@ print('scored_stream.parquet',len(full),'rows',full.station_id.nunique(),'statio
 tns=full.time_utc.dt.tz_convert(None).to_numpy()
 def _n(t): t=pd.Timestamp(t); return (t.tz_convert(None) if t.tz else t).to_datetime64()
 # ---------- sensor health (spec F-10, src/health.py) on the T3 residual of the scored (injected) stream ----------
-HEALTH_TAU='spec'  # 'spec' = spec tolerance; 'eff' = max(spec tolerance, 3 x healthy-period std of the EWMA bias), see README
+HEALTH_TAU='eff'  # 'spec' = spec tolerance; 'eff' = max(spec tolerance, 3 x healthy-period std of the EWMA bias), see README
 HEALTH_METHOD=('H = 100*(1 - min(1, 0.5*|b|/tau + 0.3*f30 + 0.2*max(0, sigma_r/sigma_ref - 1))) per station-variable, as of the sensor\'s last observation; '
  f'b = EWMA (lambda {LAM:.4f} per 3-h step) of the T3 neighbour residual; '
  +('tau = 0.5 C / 5 % RH / 0.5 hPa; ' if HEALTH_TAU=='spec' else 'tau = max(0.5 C / 5 % RH / 0.5 hPa, 3 x the healthy-period std of the EWMA bias) (deviation from the spec); ')

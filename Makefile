@@ -8,6 +8,7 @@ venv:
 
 bench:
 	$(PY) src/run_step2.py
+	$(PY) src/health_diagnosis.py
 
 test:
 	$(PY) -m pytest tests/ -q
@@ -18,5 +19,5 @@ all:
 	$(MAKE) test
 
 sync-dashboard:
-	cp outputs/metrics.json outputs/replay_stream.json stations.csv client/src/data/
+	cp outputs/metrics.json outputs/replay_stream.json outputs/health_diagnosis.json stations.csv client/src/data/
 	cp outputs/figures/*.png client/src/data/figures/
