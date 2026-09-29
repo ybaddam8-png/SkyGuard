@@ -1,6 +1,6 @@
 PY=.venv/bin/python
 
-.PHONY: bench all test venv
+.PHONY: bench all test venv sync-dashboard
 
 venv:
 	uv venv .venv --python 3.11
@@ -16,3 +16,7 @@ all:
 	@test -f data/clean/observations_clean.parquet || $(PY) src/prepare_data.py
 	$(MAKE) bench
 	$(MAKE) test
+
+sync-dashboard:
+	cp outputs/metrics.json outputs/scored_stream_sample.json outputs/alerts_examples.json stations.csv client/src/data/
+	cp outputs/figures/*.png client/src/data/figures/
