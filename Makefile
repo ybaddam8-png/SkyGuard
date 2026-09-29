@@ -18,5 +18,5 @@ all:
 	$(MAKE) test
 
 sync-dashboard:
-	cp outputs/metrics.json outputs/scored_stream_sample.json outputs/alerts_examples.json stations.csv client/src/data/
+	cp outputs/metrics.json outputs/replay_stream.json stations.csv client/src/data/
 	cp outputs/figures/*.png client/src/data/figures/
