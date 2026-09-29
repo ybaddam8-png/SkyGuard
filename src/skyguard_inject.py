@@ -24,6 +24,7 @@ MIN_STATIONS = 8
 DURATION_STEPS = {'F1': (1, 1), 'F2': (4, 24), 'F3': (56, 112), 'F4': (8, 80), 'F5': (4, 80),
                   'F6': (4, 80), 'F7': (1, 8), 'F8': (1, 1), 'F9': (1, 16)}
 PLACEMENT_ORDER = ['F3', 'F4', 'F5', 'F6', 'F2', 'F9', 'F7', 'F1', 'F8']  # long events first
+F3_RANGE = {'temp_c': (0.5, 3.0), 'rh_pct': (3.0, 15.0), 'mslp_hpa': (0.5, 3.0)}
 GAP_STEPS = 2  # minimum clean steps between events
 
 
@@ -83,7 +84,9 @@ def inject_faults(base, protected, seed=42):
             elif cls == 'F2':
                 var = rng.choice(VARS); mag = 0
             elif cls == 'F3':
-                var = rng.choice(['temp_c', 'rh_pct', 'mslp_hpa']); mag = float(rng.uniform(0.5, 3.0)) * rng.choice([-1, 1])
+                # spec section 6: T and RH mainly, P rarely; final error 0.5-3 C, 3-15 % RH, 0.5-3 hPa
+                var = rng.choice(['temp_c', 'rh_pct', 'mslp_hpa'], p=[.45, .45, .10])
+                mag = float(rng.uniform(*F3_RANGE[var])) * rng.choice([-1, 1])
             elif cls == 'F4':
                 var = rng.choice(VARS)
                 mag = float(rng.uniform({'temp_c': .5, 'rh_pct': 3, 'mslp_hpa': .5}[var], {'temp_c': 4, 'rh_pct': 15, 'mslp_hpa': 5}[var])) * rng.choice([-1, 1])

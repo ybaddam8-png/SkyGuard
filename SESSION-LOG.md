@@ -192,3 +192,20 @@ label ambiguity with native gaps; the model cannot separate them from features. 
 hypotheses from fix/slow-faults: that the slow features "did not help" was not evidence of a
 noise floor, because they were built on a z-score whose floor swamped any bias; and the CUSUM
 [-5, 5] clip was irrelevant because z3 almost never exceeded 0.5.
+
+## fix/detectability — Stage 1: label and evaluation definitions
+
+Changes: F3 injector magnitude back to spec (RH 3-15 %, variable T 45 % / RH 45 % / P 10 %);
+F3 pre-detectable rows (error below tolerance) get weight 0 and are not scored (1,108 rows);
+deterministic T0 gap rule (missing timestamp => F7, P(fault) = 1); `is_missing` and
+`gap_length_before` features; native-gap rows (11,219) excluded from row scoring, clean-step alert
+rate and protected-window false alarms; raw T3 residual `r3_*` computed (not a model input yet) for
+the healthy noise floor and SNR; detectability curve by SNR bin. `make all` and pytest pass.
+
+Result (definitions changed, so not like-for-like with fix/slow-faults): binary F1 0.621 +/- 0.056,
+macro-F1 0.544. Most of the jump is definitional: F7 is now 0.997 F1 by construction (gap rule),
+and F3's untestable early rows are no longer scored. Monsoon false alarms 78.9 -> 3.2 per 1,000:
+the old number was mostly the model flagging native gaps inside the window, which are now
+excluded. Alerts per 1,000 clean steps 44.1 -> 31.0. F3 F1 0.080, F4 0.144, F9 0.179.
+Class-correct event recall at SNR >= 3: F3 0.60 (5 events), F4 0.58 (19 events).
+Learned-model evidence for slow faults is unchanged in this stage (no new features yet).

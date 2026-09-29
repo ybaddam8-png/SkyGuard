@@ -40,6 +40,20 @@ must be 4-8% with no class above 30% of labelled rows (both tested).
 **Documented deviation:** F3 drift lasts 7-14 days, shorter than the spec's 7-45 days, so 24
 drift events fit in the coverage budget.
 
+**Evaluation definitions (fix/detectability).**
+- F3 drift rows count as a fault (training positive and scored row) only from the first step where
+  the injected error reaches the tolerance (0.5 °C, 5 % RH, 0.5 hPa). Earlier rows are
+  "pre-detectable": sample weight 0 in training, excluded from row-level scoring, kept in the event
+  table. F3 event detection counts flags from the tolerance crossing onward; delay is reported from
+  the tolerance crossing and from the PRD crossing (1 °C, 5 % RH, 1 hPa).
+- A missing expected timestamp is a comms fault whatever its cause, and the label file cannot
+  separate injected from native gaps. A deterministic T0 gap rule flags every missing timestamp
+  as F7. F7 recall is measured on injected gaps and is 1.0 by construction; native-gap rows are
+  excluded from all row-level scoring (including the F7 precision denominator), from the
+  clean-step alert rate and from protected-window false-alarm rates.
+- The F3 injector magnitude now follows spec section 6 (0.5-3 °C, 3-15 % RH, 0.5-3 hPa; T and RH
+  mainly, P 10 %). RH drift was 0.5-3 % before, below spec and below the RH noise floor.
+
 **Folds.** Default `GroupKFold` station assignment was kept: every test fold holds at least 4 events of
 every class and every training set at least 18 (per-fold counts and station lists are in
 `outputs/metrics.json` under `fold_test_events` and in `outputs/benchmark_report.md`). No reassignment was needed.

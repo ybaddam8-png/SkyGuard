@@ -1,327 +1,327 @@
 [
   {
-    "station_id": "43014",
-    "time_utc": "2025-09-26T15:00:00+00:00",
-    "variable": "mslp_hpa",
+    "station_id": "42921",
+    "time_utc": "2025-02-10T03:00:00+00:00",
+    "variable": "rh_pct",
     "observed": {
-      "temp_c": 26.0,
-      "mslp_hpa": 1009.0,
-      "rh_pct": 177.95007347943192
+      "temp_c": 19.0,
+      "mslp_hpa": 1016.1,
+      "rh_pct": 355.874273603565
     },
-    "p_fault": 0.9990304942583247,
+    "p_fault": 0.9989292845268997,
     "severity": "critical",
     "root_cause": "F1",
-    "explanation": "a soft step-limit or frozen-value rule fired; rh_pct deviates 12.0 sigma from this station's own recent history; e_jump=33.27 contributed. Root cause: F1.",
+    "explanation": "a soft step-limit or frozen-value rule fired; vapour_pressure=78.01 contributed; rh_pct deviates 39.8 sigma from this station's own recent history. Root cause: F1.",
     "top_factors": [
       {
         "feature": "t0_soft",
-        "shap": 2.184664599215555
+        "shap": 1.9875985826153428
+      },
+      {
+        "feature": "vapour_pressure",
+        "shap": 1.1045012095098952
       },
       {
         "feature": "z1_rh_pct",
-        "shap": 0.9311049800782022
-      },
-      {
-        "feature": "e_jump",
-        "shap": 0.8914346097265238
+        "shap": 0.6867533708259009
       }
     ],
     "imputed": {
-      "value": 1007.15,
-      "low": 1007.149,
-      "high": 1007.151,
+      "value": 64.044,
+      "low": 54.333,
+      "high": 73.756,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
       "t0": [
         "hard"
       ],
-      "z1_temp_c": 0.003,
-      "z1_mslp_hpa": -19.892,
-      "z1_rh_pct": 11.986,
-      "z2_temp_c": -1.039,
-      "z2_mslp_hpa": -0.633,
-      "z2_rh_pct": 9.902,
-      "z3_temp_c": 0.067,
-      "z3_mslp_hpa": 0.233,
-      "z3_rh_pct": 2.323
+      "z1_temp_c": -0.0,
+      "z1_mslp_hpa": -0.0,
+      "z1_rh_pct": 39.773,
+      "z2_temp_c": -4.014,
+      "z2_mslp_hpa": -4.498,
+      "z2_rh_pct": 29.757,
+      "z3_temp_c": -0.096,
+      "z3_mslp_hpa": 0.14,
+      "z3_rh_pct": 4.341
     },
     "model_version": "fusion-3h-0.1"
   },
   {
     "station_id": "43117",
-    "time_utc": "2023-06-23T09:00:00+00:00",
+    "time_utc": "2024-08-29T18:00:00+00:00",
     "variable": "temp_c",
     "observed": {
-      "temp_c": 36.6,
-      "mslp_hpa": 1000.9,
-      "rh_pct": 79.0
+      "temp_c": 30.4,
+      "mslp_hpa": 1006.8,
+      "rh_pct": 89.0
     },
-    "p_fault": 0.9990366551152025,
+    "p_fault": 0.9990660123446364,
     "severity": "critical",
     "root_cause": "F2",
-    "explanation": "a soft step-limit or frozen-value rule fired; vapour_pressure=48.43 contributed; e_jump=7.41 contributed. Root cause: F2.",
+    "explanation": "a soft step-limit or frozen-value rule fired; t1_temp_c_varratio shows a sustained bias, drift or variance change (0.00); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.05). Root cause: F2.",
     "top_factors": [
       {
         "feature": "t0_soft",
-        "shap": 3.2916185979025254
+        "shap": 2.8945737742772595
       },
       {
-        "feature": "vapour_pressure",
-        "shap": 1.6556529063417398
+        "feature": "slow_t1_temp_c_varratio",
+        "shap": 0.7085108295842111
       },
       {
-        "feature": "e_jump",
-        "shap": 0.8741404669229895
+        "feature": "slow_t2_temp_c_varratio",
+        "shap": 0.6701734322247032
       }
     ],
     "imputed": {
-      "value": 34.48,
-      "low": 33.467,
-      "high": 35.493,
+      "value": 26.17,
+      "low": 25.406,
+      "high": 26.933,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
       "t0": [
         "soft"
       ],
-      "z1_temp_c": 0.038,
-      "z1_mslp_hpa": -0.0,
+      "z1_temp_c": 0.228,
+      "z1_mslp_hpa": 0.504,
       "z1_rh_pct": 0.0,
-      "z2_temp_c": 0.926,
-      "z2_mslp_hpa": -0.799,
-      "z2_rh_pct": 0.872,
-      "z3_temp_c": 0.15,
-      "z3_mslp_hpa": -0.101,
-      "z3_rh_pct": 0.592
-    },
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "43117",
-    "time_utc": "2023-05-08T18:00:00+00:00",
-    "variable": "temp_c",
-    "observed": {
-      "temp_c": 41.20906945279045,
-      "mslp_hpa": 1005.5,
-      "rh_pct": 76.0
-    },
-    "p_fault": 0.9950965340117329,
-    "severity": "critical",
-    "root_cause": "F3",
-    "explanation": "a soft step-limit or frozen-value rule fired; vapour_pressure=59.71 contributed; e_jump=37.50 contributed. Root cause: F3.",
-    "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.6568522322008477
-      },
-      {
-        "feature": "vapour_pressure",
-        "shap": 1.6688434967435926
-      },
-      {
-        "feature": "e_jump",
-        "shap": 0.8714799960711355
-      }
-    ],
-    "imputed": {
-      "value": 29.455,
-      "low": 28.653,
-      "high": 30.258,
-      "method": "blend_t2_t3"
-    },
-    "tier_scores": {
-      "t0": [
-        "soft"
-      ],
-      "z1_temp_c": 0.05,
-      "z1_mslp_hpa": 0.238,
-      "z1_rh_pct": -0.928,
-      "z2_temp_c": 3.563,
-      "z2_mslp_hpa": -0.794,
-      "z2_rh_pct": 0.282,
-      "z3_temp_c": 0.874,
-      "z3_mslp_hpa": -0.002,
-      "z3_rh_pct": 0.174
+      "z2_temp_c": 2.973,
+      "z2_mslp_hpa": -0.75,
+      "z2_rh_pct": 0.08,
+      "z3_temp_c": 0.309,
+      "z3_mslp_hpa": 0.142,
+      "z3_rh_pct": -0.058
     },
     "model_version": "fusion-3h-0.1"
   },
   {
     "station_id": "42182",
-    "time_utc": "2023-11-23T00:00:00+00:00",
-    "variable": "temp_c",
+    "time_utc": "2024-03-16T03:00:00+00:00",
+    "variable": "rh_pct",
     "observed": {
-      "temp_c": 28.6,
-      "mslp_hpa": 1014.1,
+      "temp_c": 17.2,
+      "mslp_hpa": 1017.3,
       "rh_pct": 100.0
     },
-    "p_fault": 0.9892205964158631,
+    "p_fault": 0.9883237262599555,
     "severity": "critical",
-    "root_cause": "F4",
-    "explanation": "vapour_pressure=39.05 contributed; t3_temp_c_rmean8 shows a sustained bias, drift or variance change (0.44); rh_pct deviates 0.0 sigma from this station's own recent history. Root cause: F4.",
+    "root_cause": "F3",
+    "explanation": "a soft step-limit or frozen-value rule fired; t1_rh_pct_varratio shows a sustained bias, drift or variance change (0.00); e_jump=5.76 contributed. Root cause: F3.",
     "top_factors": [
       {
-        "feature": "vapour_pressure",
-        "shap": 1.176699733147139
+        "feature": "t0_soft",
+        "shap": 2.889062945743771
       },
       {
-        "feature": "slow_t3_temp_c_rmean8",
-        "shap": 0.7805830407577229
+        "feature": "slow_t1_rh_pct_varratio",
+        "shap": 0.5813586364175712
       },
       {
-        "feature": "z1_rh_pct",
-        "shap": 0.5522789974822307
+        "feature": "e_jump",
+        "shap": 0.500015218197903
       }
     ],
     "imputed": {
-      "value": 12.433,
-      "low": 12.243,
-      "high": 12.623,
+      "value": 70.691,
+      "low": 67.424,
+      "high": 73.957,
+      "method": "blend_t2_t3"
+    },
+    "tier_scores": {
+      "t0": [
+        "soft"
+      ],
+      "z1_temp_c": 0.001,
+      "z1_mslp_hpa": -0.0,
+      "z1_rh_pct": 0.185,
+      "z2_temp_c": -1.237,
+      "z2_mslp_hpa": 1.013,
+      "z2_rh_pct": 1.849,
+      "z3_temp_c": 0.015,
+      "z3_mslp_hpa": 0.006,
+      "z3_rh_pct": 0.497
+    },
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "43003",
+    "time_utc": "2025-09-05T03:00:00+00:00",
+    "variable": "temp_c",
+    "observed": {
+      "temp_c": 31.617773718074837,
+      "mslp_hpa": 1006.0,
+      "rh_pct": 84.0
+    },
+    "p_fault": 0.9952709386607415,
+    "severity": "critical",
+    "root_cause": "F4",
+    "explanation": "vapour_pressure=39.00 contributed; temp_c_clim_z=4.14 contributed; e_jump=7.35 contributed. Root cause: F4.",
+    "top_factors": [
+      {
+        "feature": "vapour_pressure",
+        "shap": 1.4303969519961113
+      },
+      {
+        "feature": "temp_c_clim_z",
+        "shap": 1.2572840345531993
+      },
+      {
+        "feature": "e_jump",
+        "shap": 1.0313019229984854
+      }
+    ],
+    "imputed": {
+      "value": 26.6,
+      "low": 26.599,
+      "high": 26.601,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
       "t0": [],
-      "z1_temp_c": -0.036,
-      "z1_mslp_hpa": -0.177,
-      "z1_rh_pct": 0.041,
-      "z2_temp_c": 4.73,
-      "z2_mslp_hpa": -1.275,
-      "z2_rh_pct": 0.162,
-      "z3_temp_c": 1.172,
-      "z3_mslp_hpa": -0.03,
-      "z3_rh_pct": -0.064
+      "z1_temp_c": -0.107,
+      "z1_mslp_hpa": 0.141,
+      "z1_rh_pct": -0.001,
+      "z2_temp_c": 4.408,
+      "z2_mslp_hpa": -1.731,
+      "z2_rh_pct": -1.046,
+      "z3_temp_c": 0.368,
+      "z3_mslp_hpa": -0.454,
+      "z3_rh_pct": 0.041
     },
     "model_version": "fusion-3h-0.1"
   },
   {
-    "station_id": "42182",
-    "time_utc": "2024-01-23T03:00:00+00:00",
-    "variable": "rh_pct",
-    "observed": {
-      "temp_c": 9.0,
-      "mslp_hpa": 1020.2,
-      "rh_pct": 0.0
-    },
-    "p_fault": 0.9988826769255875,
-    "severity": "critical",
-    "root_cause": "F5",
-    "explanation": "a soft step-limit or frozen-value rule fired; e_jump=11.12 contributed; rh_pct deviates -214.0 sigma from this station's own recent history. Root cause: F5.",
-    "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.429990486205701
-      },
-      {
-        "feature": "e_jump",
-        "shap": 0.9930948185895605
-      },
-      {
-        "feature": "z1_rh_pct",
-        "shap": 0.8905764798426165
-      }
-    ],
-    "imputed": {
-      "value": 100.0,
-      "low": 99.999,
-      "high": 100.001,
-      "method": "blend_t2_t3"
-    },
-    "tier_scores": {
-      "t0": [
-        "soft"
-      ],
-      "z1_temp_c": 0.004,
-      "z1_mslp_hpa": 0.001,
-      "z1_rh_pct": -214.018,
-      "z2_temp_c": 1.688,
-      "z2_mslp_hpa": 2.458,
-      "z2_rh_pct": -14.319,
-      "z3_temp_c": 0.036,
-      "z3_mslp_hpa": -0.006,
-      "z3_rh_pct": -1.765
-    },
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "42348",
-    "time_utc": "2023-02-18T21:00:00+00:00",
+    "station_id": "42103",
+    "time_utc": "2025-08-08T06:00:00+00:00",
     "variable": "temp_c",
     "observed": {
       "temp_c": 60.0,
-      "mslp_hpa": 1014.9,
-      "rh_pct": 74.0
+      "mslp_hpa": 1002.7,
+      "rh_pct": 66.0
     },
-    "p_fault": 0.9992486416598733,
+    "p_fault": 0.9994269421427189,
     "severity": "critical",
-    "root_cause": "F6",
-    "explanation": "a soft step-limit or frozen-value rule fired; vapour_pressure=147.95 contributed; e_jump=17.99 contributed. Root cause: F6.",
+    "root_cause": "F5",
+    "explanation": "a soft step-limit or frozen-value rule fired; temp_c_clim_z=11.29 contributed; e_jump=21.99 contributed. Root cause: F5.",
     "top_factors": [
       {
         "feature": "t0_soft",
-        "shap": 2.2426023768833483
+        "shap": 2.4359505770677967
       },
       {
-        "feature": "vapour_pressure",
-        "shap": 1.1718590287680604
+        "feature": "temp_c_clim_z",
+        "shap": 1.2132944161963435
       },
       {
         "feature": "e_jump",
-        "shap": 1.012909476332073
+        "shap": 1.0648777299583623
       }
     ],
     "imputed": {
-      "value": 19.341,
-      "low": 18.339,
-      "high": 20.343,
+      "value": 31.165,
+      "low": 27.957,
+      "high": 34.374,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
       "t0": [
         "soft"
       ],
-      "z1_temp_c": 6.74,
-      "z1_mslp_hpa": 0.001,
-      "z1_rh_pct": 1.459,
-      "z2_temp_c": 16.093,
-      "z2_mslp_hpa": -2.98,
-      "z2_rh_pct": -1.041,
-      "z3_temp_c": 3.482,
-      "z3_mslp_hpa": 0.006,
-      "z3_rh_pct": 0.33
+      "z1_temp_c": 7.008,
+      "z1_mslp_hpa": -0.0,
+      "z1_rh_pct": 0.007,
+      "z2_temp_c": 11.467,
+      "z2_mslp_hpa": -2.139,
+      "z2_rh_pct": -2.246,
+      "z3_temp_c": 1.364,
+      "z3_mslp_hpa": -0.24,
+      "z3_rh_pct": 0.051
+    },
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "42181",
+    "time_utc": "2023-02-25T06:00:00+00:00",
+    "variable": "temp_c",
+    "observed": {
+      "temp_c": 60.0,
+      "mslp_hpa": 1018.4,
+      "rh_pct": 44.0
+    },
+    "p_fault": 0.999780444634697,
+    "severity": "critical",
+    "root_cause": "F6",
+    "explanation": "a soft step-limit or frozen-value rule fired; vapour_pressure=87.97 contributed; e_jump=33.99 contributed. Root cause: F6.",
+    "top_factors": [
+      {
+        "feature": "t0_soft",
+        "shap": 2.2971737718876026
+      },
+      {
+        "feature": "vapour_pressure",
+        "shap": 1.204143387037328
+      },
+      {
+        "feature": "e_jump",
+        "shap": 0.8166823012194268
+      }
+    ],
+    "imputed": {
+      "value": 26.171,
+      "low": 25.422,
+      "high": 26.919,
+      "method": "blend_t2_t3"
+    },
+    "tier_scores": {
+      "t0": [
+        "soft"
+      ],
+      "z1_temp_c": 6.972,
+      "z1_mslp_hpa": -0.002,
+      "z1_rh_pct": -0.004,
+      "z2_temp_c": 11.36,
+      "z2_mslp_hpa": -1.524,
+      "z2_rh_pct": -1.983,
+      "z3_temp_c": 2.981,
+      "z3_mslp_hpa": 0.044,
+      "z3_rh_pct": -0.057
     },
     "model_version": "fusion-3h-0.1"
   },
   {
     "station_id": "43117",
-    "time_utc": "2024-03-15T00:00:00+00:00",
+    "time_utc": "2025-12-31T21:00:00+00:00",
     "variable": "temp_c",
     "observed": {
       "temp_c": null,
       "mslp_hpa": null,
       "rh_pct": null
     },
-    "p_fault": 0.9108138436939471,
+    "p_fault": 1.0,
     "severity": "critical",
     "root_cause": "F7",
-    "explanation": "rh_pct deviates nan sigma from this station's own recent history; t1_temp_c_varratio shows a sustained bias, drift or variance change (1.90); doy_sin=0.96 contributed. Root cause: F7.",
+    "explanation": "vapour_pressure=0.00 contributed; rh_pct deviates nan sigma from this station's own recent history; mslp_hpa_absdiff1=0.00 contributed. Root cause: F7.",
     "top_factors": [
       {
+        "feature": "vapour_pressure",
+        "shap": 0.9910929079999993
+      },
+      {
         "feature": "z1_rh_pct",
-        "shap": 0.6441752891349366
+        "shap": 0.9224601632082765
       },
       {
-        "feature": "slow_t1_temp_c_varratio",
-        "shap": 0.6048388193365704
-      },
-      {
-        "feature": "doy_sin",
-        "shap": 0.3948823383014177
+        "feature": "mslp_hpa_absdiff1",
+        "shap": 0.8298276332505597
       }
     ],
     "imputed": {
-      "value": 22.273,
-      "low": 21.317,
-      "high": 23.23,
+      "value": 19.4,
+      "low": 19.399,
+      "high": 19.401,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
@@ -332,156 +332,154 @@
       "z2_temp_c": 0.0,
       "z2_mslp_hpa": 0.0,
       "z2_rh_pct": 0.0,
-      "z3_temp_c": 0.127,
-      "z3_mslp_hpa": -0.103,
-      "z3_rh_pct": 0.02
+      "z3_temp_c": 0.062,
+      "z3_mslp_hpa": 0.164,
+      "z3_rh_pct": 0.0
+    },
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "42181",
+    "time_utc": "2025-07-16T06:00:00+00:00",
+    "variable": "rh_pct",
+    "observed": {
+      "temp_c": 31.8,
+      "mslp_hpa": 1000.6,
+      "rh_pct": -9999.0
+    },
+    "p_fault": 0.9989731825429948,
+    "severity": "critical",
+    "root_cause": "F8",
+    "explanation": "a soft step-limit or frozen-value rule fired; rh_pct deviates -6170.5 sigma from this station's own recent history; e_jump=4727.95 contributed. Root cause: F8.",
+    "top_factors": [
+      {
+        "feature": "t0_soft",
+        "shap": 2.2494370714444347
+      },
+      {
+        "feature": "z1_rh_pct",
+        "shap": 1.1179681113436726
+      },
+      {
+        "feature": "e_jump",
+        "shap": 0.6885533770690482
+      }
+    ],
+    "imputed": {
+      "value": 69.038,
+      "low": 55.035,
+      "high": 83.041,
+      "method": "blend_t2_t3"
+    },
+    "tier_scores": {
+      "t0": [
+        "hard"
+      ],
+      "z1_temp_c": 0.001,
+      "z1_mslp_hpa": 0.001,
+      "z1_rh_pct": -6170.499,
+      "z2_temp_c": 135.618,
+      "z2_mslp_hpa": 136.103,
+      "z2_rh_pct": -906.224,
+      "z3_temp_c": -0.098,
+      "z3_mslp_hpa": 0.029,
+      "z3_rh_pct": -94.401
+    },
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "42181",
+    "time_utc": "2025-08-07T03:00:00+00:00",
+    "variable": "temp_c",
+    "observed": {
+      "temp_c": 45.15361099425111,
+      "mslp_hpa": 1003.8,
+      "rh_pct": 72.0
+    },
+    "p_fault": 0.9962528981202892,
+    "severity": "critical",
+    "root_cause": "F9",
+    "explanation": "a soft step-limit or frozen-value rule fired; vapour_pressure=69.52 contributed; e_jump=29.57 contributed. Root cause: F9.",
+    "top_factors": [
+      {
+        "feature": "t0_soft",
+        "shap": 2.3750116962538304
+      },
+      {
+        "feature": "vapour_pressure",
+        "shap": 1.1342630415570856
+      },
+      {
+        "feature": "e_jump",
+        "shap": 0.9490551129430659
+      }
+    ],
+    "imputed": {
+      "value": 30.599,
+      "low": 30.143,
+      "high": 31.055,
+      "method": "blend_t2_t3"
+    },
+    "tier_scores": {
+      "t0": [
+        "soft"
+      ],
+      "z1_temp_c": 0.428,
+      "z1_mslp_hpa": -0.027,
+      "z1_rh_pct": 0.001,
+      "z2_temp_c": 12.834,
+      "z2_mslp_hpa": -1.669,
+      "z2_rh_pct": -3.134,
+      "z3_temp_c": 1.301,
+      "z3_mslp_hpa": -0.037,
+      "z3_rh_pct": 0.103
     },
     "model_version": "fusion-3h-0.1"
   },
   {
     "station_id": "43117",
-    "time_utc": "2024-06-19T21:00:00+00:00",
-    "variable": "rh_pct",
+    "time_utc": "2025-12-30T00:00:00+00:00",
+    "variable": "temp_c",
     "observed": {
-      "temp_c": 26.0,
-      "mslp_hpa": 1003.7,
-      "rh_pct": 0.0
+      "temp_c": null,
+      "mslp_hpa": null,
+      "rh_pct": null
     },
-    "p_fault": 0.9984200797286428,
+    "p_fault": 1.0,
     "severity": "critical",
-    "root_cause": "F8",
-    "explanation": "a soft step-limit or frozen-value rule fired; rh_pct deviates -43.9 sigma from this station's own recent history; e_jump=31.93 contributed. Root cause: F8.",
+    "root_cause": "F7",
+    "explanation": "vapour_pressure=0.00 contributed; rh_pct deviates nan sigma from this station's own recent history; temp_c deviates nan sigma from this station's own recent history. Root cause: F7.",
     "top_factors": [
       {
-        "feature": "t0_soft",
-        "shap": 2.559857657681711
+        "feature": "vapour_pressure",
+        "shap": 0.9773916968181406
       },
       {
         "feature": "z1_rh_pct",
-        "shap": 1.039940176475889
+        "shap": 0.938494636115401
       },
       {
-        "feature": "e_jump",
-        "shap": 0.886286611424084
+        "feature": "z1_temp_c",
+        "shap": 0.8359328427087562
       }
     ],
     "imputed": {
-      "value": 86.308,
-      "low": 79.939,
-      "high": 92.677,
+      "value": 17.3,
+      "low": 17.299,
+      "high": 17.301,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
-      "t0": [
-        "soft"
-      ],
-      "z1_temp_c": 0.003,
-      "z1_mslp_hpa": 0.015,
-      "z1_rh_pct": -43.916,
-      "z2_temp_c": 1.854,
-      "z2_mslp_hpa": 1.102,
-      "z2_rh_pct": -10.076,
-      "z3_temp_c": 0.029,
-      "z3_mslp_hpa": 0.267,
-      "z3_rh_pct": -1.848
-    },
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "42170",
-    "time_utc": "2025-05-05T03:00:00+00:00",
-    "variable": "mslp_hpa",
-    "observed": {
-      "temp_c": 28.0,
-      "mslp_hpa": 1019.2,
-      "rh_pct": 56.0
-    },
-    "p_fault": 0.991982587514747,
-    "severity": "critical",
-    "root_cause": "F9",
-    "explanation": "a soft step-limit or frozen-value rule fired; mslp_hpa_roll8_std=7.64 contributed; t3_mslp_hpa_cusum_pos shows a sustained bias, drift or variance change (0.66). Root cause: F9.",
-    "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 3.2740483254931747
-      },
-      {
-        "feature": "mslp_hpa_roll8_std",
-        "shap": 1.4355193179587926
-      },
-      {
-        "feature": "slow_t3_mslp_hpa_cusum_pos",
-        "shap": 0.49577077738515185
-      }
-    ],
-    "imputed": {
-      "value": 1007.268,
-      "low": 1005.649,
-      "high": 1008.887,
-      "method": "blend_t2_t3"
-    },
-    "tier_scores": {
-      "t0": [
-        "soft"
-      ],
-      "z1_temp_c": 0.0,
-      "z1_mslp_hpa": 0.003,
-      "z1_rh_pct": -0.026,
-      "z2_temp_c": -1.434,
-      "z2_mslp_hpa": 3.621,
-      "z2_rh_pct": 0.292,
-      "z3_temp_c": 0.133,
-      "z3_mslp_hpa": 1.156,
-      "z3_rh_pct": -0.083
-    },
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "43003",
-    "time_utc": "2023-07-13T00:00:00+00:00",
-    "variable": "temp_c",
-    "observed": {
-      "temp_c": 60.0,
-      "mslp_hpa": 1003.8,
-      "rh_pct": 86.0
-    },
-    "p_fault": 0.9992448000252196,
-    "severity": "critical",
-    "root_cause": "F6",
-    "explanation": "a soft step-limit or frozen-value rule fired; vapour_pressure=171.94 contributed; e_jump=8.00 contributed. Root cause: F6.",
-    "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.6799560191055924
-      },
-      {
-        "feature": "vapour_pressure",
-        "shap": 1.1577418964788158
-      },
-      {
-        "feature": "e_jump",
-        "shap": 0.7998863450622704
-      }
-    ],
-    "imputed": {
-      "value": 27.156,
-      "low": 26.301,
-      "high": 28.011,
-      "method": "blend_t2_t3"
-    },
-    "tier_scores": {
-      "t0": [
-        "soft"
-      ],
-      "z1_temp_c": 7.992,
-      "z1_mslp_hpa": -0.039,
-      "z1_rh_pct": -0.05,
-      "z2_temp_c": 32.565,
-      "z2_mslp_hpa": -4.187,
-      "z2_rh_pct": -5.854,
-      "z3_temp_c": 2.261,
-      "z3_mslp_hpa": 0.112,
-      "z3_rh_pct": -0.046
+      "t0": [],
+      "z1_temp_c": null,
+      "z1_mslp_hpa": null,
+      "z1_rh_pct": null,
+      "z2_temp_c": 0.0,
+      "z2_mslp_hpa": 0.0,
+      "z2_rh_pct": 0.0,
+      "z3_temp_c": 0.195,
+      "z3_mslp_hpa": 0.0,
+      "z3_rh_pct": 0.0
     },
     "model_version": "fusion-3h-0.1"
   }
