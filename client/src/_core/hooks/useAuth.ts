@@ -8,6 +8,8 @@ type UseAuthOptions = {
   redirectPath?: string;
 };
 
+const STATIC_DEMO = import.meta.env.VITE_STATIC_DEMO === "1";
+
 export function useAuth(options?: UseAuthOptions) {
   // Login is started via startLogin() in the effect below, only when we actually
   // navigate — never during render. startLogin() mints a one-time nonce + writes
@@ -16,9 +18,12 @@ export function useAuth(options?: UseAuthOptions) {
   const { redirectOnUnauthenticated = false, redirectPath } = options ?? {};
   const utils = trpc.useUtils();
 
+  // Static demo builds ship with no server and no Manus login - never issue the
+  // network call, so `enabled: false` short-circuits react-query entirely.
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
+    enabled: !STATIC_DEMO,
   });
 
   const logoutMutation = trpc.auth.logout.useMutation({

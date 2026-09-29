@@ -1,5 +1,64 @@
 # Session log
 
+## 2026-09-29 — fix/dashboard: static demo mode, real metrics wiring, no-fake-data pass
+
+Done by Claude Code (Claude Sonnet 5), branched off `fix/benchmark` so the dashboard picks
+up every fix from that branch (corrected injector, bounds, baselines, metrics, SHAP
+explanations, imputation, figures). User was away for this part; decisions below were
+made autonomously per their instruction.
+
+1. **Copied regenerated engine outputs** into `client/src/data/`: `metrics.json`,
+   `scored_stream_sample.json`, `alerts_examples.json`, `stations.csv`, and all 5 figures.
+2. **Found and fixed a real bug on `fix/benchmark`** while wiring this up: `tier_scores_for()`
+   in `src/run_step2.py` emitted bare Python `NaN` (invalid JSON) for F7-dropout rows,
+   which broke the Vite JSON import once `alerts_examples.json` was actually read by the
+   client. Fixed with a NaN/inf-safe rounding helper and `allow_nan=False` on both
+   `json.dump` calls so a future regression fails the pipeline loudly instead of shipping
+   broken JSON silently.
+3. **Static demo mode** (`VITE_STATIC_DEMO=1`, now the `pnpm build` default): `useAuth`
+   disables its `trpc.auth.me` query via react-query's `enabled: false` instead of hitting
+   a server that won't exist; `getReplayState`/`listFeedback` queries are disabled the same
+   way; operator feedback, injected-fault events, and replay scrub position are read/written
+   to `localStorage` (wrapped in try/catch) instead of calling the tRPC mutations; the
+   sign-in button is hidden entirely. Also removed `pnpm.patchedDependencies` from
+   `package.json` — it pointed at `patches/wouter@3.7.1.patch`, which was never committed
+   anywhere in git history and blocked `pnpm install` outright.
+4. **No-fake-data pass**: the KPI row, nav alert-queue badge, network-view coverage/consensus
+   stats, station watchlist readings, sensor-health scores, and the alert drawer's tier
+   consensus/explanation/top-factors/imputed-value block were all hardcoded or fabricated
+   before this session (e.g. a health score literally computed as `i===0?74:i===4?68:...`).
+   Every one of those now derives from `client/src/data/*` at render time - health scores
+   blend real station coverage with real recent fault rate from the scored stream; the
+   drawer's tier consensus/explanation/top factors/imputed value read straight from each
+   alert's `tier_scores`/`explanation`/`top_factors`/`imputed` fields (real SHAP + imputation
+   output from `fix/benchmark`, not the old generic template).
+5. **Injected-fault alerts now actually reach the alert queue** - the "Inject anomaly" flow
+   previously only moved the map marker; the new fault was never added to `liveAlerts`.
+   Added a small `injectedAlerts` local-storage-backed list so every fault type triggers a
+   real, visible queue entry (verified for F1/F2/F3/F5/F6/F8; F4/F7/F9 aren't in the
+   Injector's own dropdown, that's unchanged pre-existing scope).
+6. Added `<link rel="icon" href="data:,">` to `client/index.html` to stop the browser's
+   default favicon request from showing as a console 404.
+
+**Verified with `npx playwright cli`** (fresh persistent profile, 1920x1080, against
+`pnpm run preview` serving the `pnpm build` output): network map, alert queue, station
+drill-down with the Why panel open, sensor health, benchmark evidence, and the heatwave
+protected-window figure all load with zero console errors; `Play` advances the replay;
+injecting a fault increments the alert-queue badge and appears at the top of the queue.
+Screenshots in `outputs/screenshots/`. `pnpm run check` (tsc), `pnpm run build`, and
+`pnpm test` (existing server vitest suite) all pass.
+
+**Build and preview locally:**
+```bash
+pnpm install
+pnpm run build     # VITE_STATIC_DEMO=1 by default - no server/login needed
+pnpm run preview   # serves dist/public at http://localhost:4173
+```
+
+**Not done, deliberately out of scope**: no deployment anywhere - not asked, and the user
+said to ask first. `dist/` chunk-size warning (985 kB JS bundle) is pre-existing and
+unrelated to this session's changes; left alone.
+
 ## 2026-09-28 — fix/benchmark: fix injector, bounds, baselines, metrics, explanations, figures, repro
 
 Done by Claude Code (Claude Sonnet 5), following an external review of `src/run_step2.py`.
