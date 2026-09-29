@@ -376,3 +376,40 @@ is set on the row. Regenerated via `make all` (explanations need the fold models
 (binary F1 0.698, macro-F1 0.597). Checked all 110 explanation sentences in `alerts_examples.json` and
 `scored_stream_sample.json`: none quotes a number above 10 sigma. README gained "Limits and reading of
 the PS". `make all` (pytest 8 passed), `make sync-dashboard`, `pnpm run build` pass.
+
+## fix/dashboard-data — full out-of-fold export, curated replay, dashboard on real engine output
+
+Diagnosis: the old export kept only the last 14 days of the stream (2025-12-17 to 2025-12-31, 1,695
+rows, 15 stations). Most stations had stopped reporting by then, and the rows were ordered by
+station, so `head(100)` returned 100 rows of 42101 Patiala. All three values were missing on every
+row, and the deterministic gap rule labelled them F7.
+
+Export (`src/run_step2.py`, export step only; models, features, thresholds and metrics unchanged):
+`scored_stream.parquet` now holds all 131,520 out-of-fold station-steps (15 stations, 2023-01-01 to
+2025-12-31). Each row is scored by the fold model that held its station out. New
+`replay_stream.json` (1.10 MB) has these segments: A = heatwave_a, 42181/42348/42101, 5 alerts in 815
+observations (1 critical); B = F1-F9 showcase events plus one missed F3 event (42348, rh_pct drift);
+C = monsoon_c, 43003/43014, 0 alerts in 114 observations. Sensor health uses spec F-10, computed on
+the out-of-fold T3 residuals and documented in the README. Alert sentences no longer quote NaN values
+for missing observations. `tests/test_replay.py` checks the counts, the missing-value rule, the
+F1-F9 coverage and that the parquet has one row per dataset row. metrics.json is identical except
+for the wall-clock latency timer.
+
+Dashboard (`client/src/App.tsx`, `index.css`): everything is read from `replay_stream.json`,
+`metrics.json` and `stations.csv`. Removed the client-side "Inject anomaly" feature, because it
+invented p_fault values, and the fake "next update" timer. The stations.csv parser read the wrong
+columns (a quoted field contains commas); it now reads the trailing columns from the end. Map: 15
+default stations, with the 5 low-coverage stations behind a toggle; fit-bounds with padding; the
+banner is computed from the replay cursor. Queue: 72 alerts, sorted by severity then time, scrolling
+inside its card. Drill-down plots the station's real rows (observed, engine estimate, neighbour
+estimate), shades the injected span and marks the selected alert. Drawer: tier consensus and the
+sentence both come from the witness flags. Health: F-10 per sensor, "no data" when a sensor has none.
+Benchmark figures use object-fit contain and open larger on click.
+
+Verified: `make all` (9 passed), `make sync-dashboard`, `pnpm run check`, `pnpm run build`. Playwright
+at 1920x1080 in a fresh context found 0 console errors. It saw 15/20 map markers, 72 queue rows,
+3 shaded fault spans, 15 health cards, 5 figures and a working lightbox. Screenshots 01-06 are
+regenerated.
+Finding: most stations score low on F-10 health. Injected F6/F8 values inflate sigma_r, and the bias
+term |b|/tau is strict at tau = 0.5 C / 0.5 hPa. That is how the spec formula reads the injected
+stream; the weights were not changed.
