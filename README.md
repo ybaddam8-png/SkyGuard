@@ -76,11 +76,85 @@ Stage 2 stop rule; see `SESSION-LOG.md`).
 
 Scope:
 
-- 12 stations: 6 in cluster **(a)** Delhi-NCR/Rajasthan and 6 in cluster **(c)** Maharashtra.
+- Default benchmark: 15 stations (fix/detectability Stage D; was 12): 9 in cluster **(a)**
+  Delhi-NCR/Rajasthan and 6 in cluster **(c)** Maharashtra, all with complete-triplet synoptic
+  coverage >= 50 % (`in_default_set` in `stations.csv`). `stations.csv` keeps 20 rows: cluster (c)
+  had only 6 candidates at >= 50 %, so the 35 % fallback added 5 `low_coverage` stations (43157
+  Kolhapur, 43002 Bombay/Juhu, 43001 Dahanu, 43109 Harnai, 43057 Bombay/Colaba). They are an opt-in
+  comparison only (`SKYGUARD_ALL_STATIONS=1`, see "Station-set comparison"). Selection is automatic
+  from `data/clean/candidate_synoptic_coverage.csv` in `src/prepare_data.py`. Re-fetched data for
+  the original 12 stations is identical to the previous fetch. Cadence is pinned to 3-hourly
+  (config). Injector event counts scale with station count; per-class minimums are unchanged.
 - Cluster (b), edge tier, and LSTM baseline are excluded.
 - Future LightGBM models use at most **200 trees**.
 - Evaluation uses grouped **5-fold cross-validation by station**.
 - Current pipeline cadence is **3-hourly synoptic time**: 00, 03, ..., 21 UTC.
+
+## Station-set comparison
+
+Default benchmark = 15 stations (the 12 original plus 3 new stations with complete-triplet synoptic coverage >= 50 %).
+The 20-station set adds the 5 `low_coverage` stations of cluster (c) (35 % floor) and is opt-in: `SKYGUARD_ALL_STATIONS=1 make bench`
+writes to `outputs/all_stations/` and `data/bench/all_stations/`. The default was fixed in advance on two grounds: the 35 % floor was
+a fallback, and the 15-station binary F1 is within 0.03 of the 12-station Stage C result. **Caveat:** the two sets differ by exactly
+the 5 low-coverage stations, but the grouped fold assignment and the injected events (counts scale with station count) also shift,
+so differences are not only a station-quality effect. Numbers below are copied from the two `metrics.json` files.
+
+| Metric | 15 stations (default) | 20 stations |
+|---|---:|---:|
+| Binary F1 | 0.698 ± 0.037 | 0.651 ± 0.027 |
+| Precision | 0.717 ± 0.039 | 0.629 ± 0.069 |
+| Recall | 0.681 ± 0.049 | 0.682 ± 0.041 |
+| Macro-F1 (OOF) | 0.597 | 0.592 |
+| Alerts / 1,000 clean steps | 22.87 | 33.28 |
+| False alarms / 1,000, heatwave_a | 3.72 (2,421 obs) | 9.09 (2,421 obs) |
+| False alarms / 1,000, biparjoy_a | 3.25 (308 obs) | 6.49 (308 obs) |
+| False alarms / 1,000, monsoon_c | 0.00 (311 obs) | 20.04 (449 obs) |
+| Labelled fault rows | 9,976 | 10,942 |
+
+| Class | F1, 15 stations | F1, 20 stations | Class-correct event recall, 15 | Class-correct event recall, 20 |
+|---|---:|---:|---:|---:|
+| F1 | 0.477 | 0.558 | 0.580 | 0.573 |
+| F2 | 0.725 | 0.580 | 0.973 | 0.890 |
+| F3 | 0.197 | 0.164 | 0.483 | 0.487 |
+| F4 | 0.208 | 0.300 | 0.689 | 0.733 |
+| F5 | 0.789 | 0.758 | 1.000 | 0.967 |
+| F6 | 0.935 | 0.944 | 1.000 | 1.000 |
+| F7 | 0.945 | 0.975 | 1.000 | 1.000 |
+| F8 | 0.796 | 0.797 | 0.886 | 0.821 |
+| F9 | 0.300 | 0.255 | 0.600 | 0.600 |
+
+Ablation (paired per-fold binary F1 difference, full minus tier removed):
+
+| Tier removed | 15 stations (per fold; mean; folds ablated >= full) | 20 stations |
+|---|---|---|
+| no_T1 | +0.050, +0.048, +0.054, +0.060, +0.043; +0.051; 0/5 | +0.014, +0.081, +0.091, +0.046, +0.117; +0.070; 0/5 |
+| no_T2 | +0.008, +0.008, +0.007, +0.025, +0.022; +0.014; 0/5 | +0.008, +0.028, +0.008, +0.017, +0.020; +0.016; 0/5 |
+| no_T3 | +0.046, +0.051, -0.008, +0.030, +0.033; +0.030; 1/5 | +0.048, +0.041, +0.040, +0.044, +0.029; +0.040; 0/5 |
+
+Neighbour count per station (links used by T3; 12 stations = before Stage D):
+
+| Station | 12 stations | 15 stations | 20 stations |
+|---|---:|---:|---:|
+| 42181 | 2 | 2 | 2 |
+| 42348 | 4 | 4 | 4 |
+| 42182 | 2 | 2 | 2 |
+| 42170 | 2 | 2 | 2 |
+| 42101 | - | 3 | 3 |
+| 42189 | - | 3 | 3 |
+| 42103 | 4 | 3 | 3 |
+| 42111 | - | 2 | 2 |
+| 42131 | 4 | 5 | 5 |
+| 43003 | 4 | 4 | 4 |
+| 43014 | 4 | 4 | 7 |
+| 43063 | 2 | 2 | 2 |
+| 43110 | 3 | 3 | 3 |
+| 42921 | 2 | 2 | 2 |
+| 43117 | 3 | 3 | 5 |
+| 43157 | - | - | 5 |
+| 43002 | - | - | 4 |
+| 43001 | - | - | 3 |
+| 43109 | - | - | 4 |
+| 43057 | - | - | 4 |
 
 ## Retrieval and pressure
 

@@ -1,293 +1,291 @@
 [
   {
-    "station_id": "42103",
-    "time_utc": "2023-02-12T15:00:00+00:00",
+    "station_id": "42348",
+    "time_utc": "2024-09-29T12:00:00+00:00",
     "variable": "temp_c",
     "observed": {
-      "temp_c": 44.780871391630626,
-      "mslp_hpa": 1019.6,
-      "rh_pct": 41.0
+      "temp_c": 45.78969115275996,
+      "mslp_hpa": 1007.4,
+      "rh_pct": 62.0
     },
-    "p_fault": 0.9983719804926465,
+    "p_fault": 0.9973961186432065,
     "severity": "critical",
     "root_cause": "F1",
-    "explanation": "a soft step-limit or frozen-value rule fired; t2_temp_c_varratio shows a sustained bias, drift or variance change (6.79); z_max=21.24 contributed. Root cause: F1.",
+    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=14.4); z_max=14.45 contributed. Root cause: F1.",
     "top_factors": [
       {
         "feature": "t0_soft",
-        "shap": 2.1011064136326194
-      },
-      {
-        "feature": "slow_t2_temp_c_varratio",
-        "shap": 1.3352455399432261
-      },
-      {
-        "feature": "z_max",
-        "shap": 1.3123319568345388
-      }
-    ],
-    "imputed": {
-      "value": 15.996,
-      "low": 14.764,
-      "high": 17.228,
-      "method": "blend_t2_t3"
-    },
-    "tier_scores": {
-      "t0": [
-        "soft"
-      ],
-      "z1_temp_c": 0.431,
-      "z1_mslp_hpa": 0.001,
-      "z1_rh_pct": 0.005,
-      "z2_temp_c": 21.244,
-      "z2_mslp_hpa": 3.295,
-      "z2_rh_pct": -0.089,
-      "z3_temp_c": 2.238,
-      "z3_mslp_hpa": -0.007,
-      "z3_rh_pct": -0.136
-    },
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "43014",
-    "time_utc": "2023-12-16T15:00:00+00:00",
-    "variable": "temp_c",
-    "observed": {
-      "temp_c": 26.2,
-      "mslp_hpa": 1014.8,
-      "rh_pct": 82.0
-    },
-    "p_fault": 0.9984061580677567,
-    "severity": "critical",
-    "root_cause": "F2",
-    "explanation": "a soft step-limit or frozen-value rule fired; t2_temp_c_varratio shows a sustained bias, drift or variance change (3.45); temp_c is inconsistent with the station's other variables (z=4.2). Root cause: F2.",
-    "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.0969294269867773
-      },
-      {
-        "feature": "slow_t2_temp_c_varratio",
-        "shap": 0.9334376116354594
+        "shap": 2.0914216981787184
       },
       {
         "feature": "z2_temp_c",
-        "shap": 0.9278886662606005
+        "shap": 1.46943887765752
+      },
+      {
+        "feature": "z_max",
+        "shap": 0.7322023193979196
       }
     ],
     "imputed": {
-      "value": 18.089,
-      "low": 16.625,
-      "high": 19.554,
+      "value": 31.298,
+      "low": 29.746,
+      "high": 32.85,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
       "t0": [
         "soft"
       ],
-      "z1_temp_c": -0.0,
-      "z1_mslp_hpa": -0.0,
-      "z1_rh_pct": 0.002,
-      "z2_temp_c": 4.21,
-      "z2_mslp_hpa": 0.79,
-      "z2_rh_pct": 0.773,
-      "z3_temp_c": 0.644,
-      "z3_mslp_hpa": -0.064,
-      "z3_rh_pct": 0.153
-    },
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "43117",
-    "time_utc": "2025-03-02T15:00:00+00:00",
-    "variable": "temp_c",
-    "observed": {
-      "temp_c": 30.8,
-      "mslp_hpa": 1012.0,
-      "rh_pct": 48.0
-    },
-    "p_fault": 0.9941964091224553,
-    "severity": "critical",
-    "root_cause": "F3",
-    "explanation": "a soft step-limit or frozen-value rule fired; z_max=32.09 contributed; mslp_hpa_absdiff1=0.00 contributed. Root cause: F3.",
-    "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.904013117391396
-      },
-      {
-        "feature": "z_max",
-        "shap": 0.7873846219991056
-      },
-      {
-        "feature": "mslp_hpa_absdiff1",
-        "shap": 0.687005932340569
-      }
-    ],
-    "imputed": {
-      "value": 31.683,
-      "low": 31.167,
-      "high": 32.2,
-      "method": "blend_t2_t3"
-    },
-    "tier_scores": {
-      "t0": [
-        "soft"
-      ],
-      "z1_temp_c": -32.086,
-      "z1_mslp_hpa": 0.019,
-      "z1_rh_pct": 0.023,
-      "z2_temp_c": 1.137,
-      "z2_mslp_hpa": 1.767,
-      "z2_rh_pct": 1.178,
-      "z3_temp_c": -0.07,
-      "z3_mslp_hpa": 0.601,
-      "z3_rh_pct": 0.154
-    },
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "42182",
-    "time_utc": "2025-02-21T15:00:00+00:00",
-    "variable": "temp_c",
-    "observed": {
-      "temp_c": 22.93792041431879,
-      "mslp_hpa": 1016.4,
-      "rh_pct": 79.0
-    },
-    "p_fault": 0.9873732840019195,
-    "severity": "critical",
-    "root_cause": "F4",
-    "explanation": "temp_c is inconsistent with the station's other variables (z=3.1); z_max=3.13 contributed; t1_temp_c_r2lin56 shows a sustained bias, drift or variance change (0.13). Root cause: F4.",
-    "top_factors": [
-      {
-        "feature": "z2_temp_c",
-        "shap": 0.9196014763946389
-      },
-      {
-        "feature": "z_max",
-        "shap": 0.774108635144174
-      },
-      {
-        "feature": "slow_t1_temp_c_r2lin56",
-        "shap": 0.7044294590376273
-      }
-    ],
-    "imputed": {
-      "value": 17.828,
-      "low": 16.825,
-      "high": 18.83,
-      "method": "blend_t2_t3"
-    },
-    "tier_scores": {
-      "t0": [],
-      "z1_temp_c": -0.041,
-      "z1_mslp_hpa": 0.0,
-      "z1_rh_pct": 0.0,
-      "z2_temp_c": 3.131,
-      "z2_mslp_hpa": 1.801,
-      "z2_rh_pct": 0.928,
-      "z3_temp_c": 0.351,
-      "z3_mslp_hpa": -0.022,
-      "z3_rh_pct": -0.283
+      "z1_temp_c": 1.369,
+      "z1_mslp_hpa": 0.269,
+      "z1_rh_pct": -0.0,
+      "z2_temp_c": 14.449,
+      "z2_mslp_hpa": 3.537,
+      "z2_rh_pct": 2.337,
+      "z3_temp_c": 1.194,
+      "z3_mslp_hpa": -0.061,
+      "z3_rh_pct": 0.05
     },
     "model_version": "fusion-3h-0.1"
   },
   {
     "station_id": "43063",
-    "time_utc": "2024-09-03T00:00:00+00:00",
+    "time_utc": "2024-05-19T09:00:00+00:00",
     "variable": "rh_pct",
     "observed": {
-      "temp_c": 23.6,
-      "mslp_hpa": 1004.5,
-      "rh_pct": 0.0
+      "temp_c": 38.0,
+      "mslp_hpa": 1009.4,
+      "rh_pct": 84.0
     },
-    "p_fault": 0.9990359202765497,
+    "p_fault": 0.9991480685902923,
     "severity": "critical",
-    "root_cause": "F5",
-    "explanation": "a soft step-limit or frozen-value rule fired; t2_temp_c_varratio shows a sustained bias, drift or variance change (2.58); rh_pct is inconsistent with the station's other variables (z=-24.0). Root cause: F5.",
+    "root_cause": "F2",
+    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=4.0); t1_rh_pct_varratio shows a sustained bias, drift or variance change (0.00). Root cause: F2.",
     "top_factors": [
       {
         "feature": "t0_soft",
-        "shap": 1.9469103636714098
+        "shap": 2.041072599735135
       },
       {
-        "feature": "slow_t2_temp_c_varratio",
-        "shap": 1.5537948069328995
+        "feature": "z2_temp_c",
+        "shap": 1.3952300897074075
       },
       {
-        "feature": "z2_rh_pct",
-        "shap": 0.9342099426643984
+        "feature": "slow_t1_rh_pct_varratio",
+        "shap": 1.3253448483554953
       }
     ],
     "imputed": {
-      "value": 92.0,
-      "low": 91.999,
-      "high": 92.001,
+      "value": 28.127,
+      "low": 12.226,
+      "high": 44.029,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
       "t0": [
         "soft"
       ],
-      "z1_temp_c": -0.004,
-      "z1_mslp_hpa": 0.082,
-      "z1_rh_pct": -200.208,
-      "z2_temp_c": -1.039,
-      "z2_mslp_hpa": -1.056,
-      "z2_rh_pct": -24.046,
-      "z3_temp_c": 0.05,
-      "z3_mslp_hpa": -0.285,
-      "z3_rh_pct": -1.438
+      "z1_temp_c": -0.026,
+      "z1_mslp_hpa": 0.005,
+      "z1_rh_pct": -0.086,
+      "z2_temp_c": 4.012,
+      "z2_mslp_hpa": 3.429,
+      "z2_rh_pct": 9.041,
+      "z3_temp_c": -0.07,
+      "z3_mslp_hpa": 1.216,
+      "z3_rh_pct": 0.743
     },
     "model_version": "fusion-3h-0.1"
   },
   {
-    "station_id": "43117",
-    "time_utc": "2023-03-23T00:00:00+00:00",
+    "station_id": "42348",
+    "time_utc": "2024-09-29T15:00:00+00:00",
     "variable": "temp_c",
     "observed": {
-      "temp_c": 60.0,
-      "mslp_hpa": 1008.3,
-      "rh_pct": 68.0
+      "temp_c": 48.36190092800222,
+      "mslp_hpa": 1008.5,
+      "rh_pct": 70.0
     },
-    "p_fault": 0.9997322313139709,
+    "p_fault": 0.9919643803348299,
     "severity": "critical",
-    "root_cause": "F6",
-    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=23.6); t2_temp_c_varratio shows a sustained bias, drift or variance change (3.50). Root cause: F6.",
+    "root_cause": "F3",
+    "explanation": "temp_c is inconsistent with the station's other variables (z=20.8); t2_temp_c_varratio shows a sustained bias, drift or variance change (19.79); z_max=20.80 contributed. Root cause: F3.",
     "top_factors": [
       {
-        "feature": "t0_soft",
-        "shap": 2.0824233278393613
-      },
-      {
         "feature": "z2_temp_c",
-        "shap": 1.9618042871481833
+        "shap": 1.8926336142511004
       },
       {
         "feature": "slow_t2_temp_c_varratio",
-        "shap": 1.3850523296668378
+        "shap": 0.7379996887201318
+      },
+      {
+        "feature": "z_max",
+        "shap": 0.7080017323613044
       }
     ],
     "imputed": {
-      "value": 24.169,
-      "low": 22.726,
-      "high": 25.611,
+      "value": 29.06,
+      "low": 27.999,
+      "high": 30.12,
+      "method": "blend_t2_t3"
+    },
+    "tier_scores": {
+      "t0": [],
+      "z1_temp_c": 2.113,
+      "z1_mslp_hpa": 0.143,
+      "z1_rh_pct": 0.022,
+      "z2_temp_c": 20.798,
+      "z2_mslp_hpa": 3.231,
+      "z2_rh_pct": 2.303,
+      "z3_temp_c": 1.649,
+      "z3_mslp_hpa": -0.141,
+      "z3_rh_pct": -0.01
+    },
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "43003",
+    "time_utc": "2025-09-09T12:00:00+00:00",
+    "variable": "temp_c",
+    "observed": {
+      "temp_c": 29.0,
+      "mslp_hpa": 1008.0,
+      "rh_pct": 90.00113020497615
+    },
+    "p_fault": 0.9934101398269148,
+    "severity": "critical",
+    "root_cause": "F4",
+    "explanation": "t2_temp_c_varratio shows a sustained bias, drift or variance change (2.20); temp_c is inconsistent with the station's other variables (z=3.1); e_jump=8.86 contributed. Root cause: F4.",
+    "top_factors": [
+      {
+        "feature": "slow_t2_temp_c_varratio",
+        "shap": 1.291515314872318
+      },
+      {
+        "feature": "z2_temp_c",
+        "shap": 1.2755840513976395
+      },
+      {
+        "feature": "e_jump",
+        "shap": 0.607202803848406
+      }
+    ],
+    "imputed": {
+      "value": 30.5,
+      "low": 30.499,
+      "high": 30.501,
+      "method": "blend_t2_t3"
+    },
+    "tier_scores": {
+      "t0": [],
+      "z1_temp_c": 0.002,
+      "z1_mslp_hpa": 0.088,
+      "z1_rh_pct": -0.006,
+      "z2_temp_c": 3.11,
+      "z2_mslp_hpa": 1.932,
+      "z2_rh_pct": 2.6,
+      "z3_temp_c": -0.11,
+      "z3_mslp_hpa": -0.611,
+      "z3_rh_pct": 0.244
+    },
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "42131",
+    "time_utc": "2025-04-28T21:00:00+00:00",
+    "variable": "temp_c",
+    "observed": {
+      "temp_c": 28.0,
+      "mslp_hpa": 976.896712015398,
+      "rh_pct": 51.0
+    },
+    "p_fault": 0.9988860246546962,
+    "severity": "critical",
+    "root_cause": "F5",
+    "explanation": "a soft step-limit or frozen-value rule fired; t2_mslp_hpa_varratio shows a sustained bias, drift or variance change (9.56); t3_mslp_hpa_res shows a sustained bias, drift or variance change (-28.59). Root cause: F5.",
+    "top_factors": [
+      {
+        "feature": "t0_soft",
+        "shap": 2.721433914105459
+      },
+      {
+        "feature": "slow_t2_mslp_hpa_varratio",
+        "shap": 1.5263698840190583
+      },
+      {
+        "feature": "slow_t3_mslp_hpa_res",
+        "shap": 0.46292721120294705
+      }
+    ],
+    "imputed": {
+      "value": 24.967,
+      "low": 22.722,
+      "high": 27.211,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
       "t0": [
         "soft"
       ],
-      "z1_temp_c": 7.388,
-      "z1_mslp_hpa": 1.018,
-      "z1_rh_pct": 0.013,
-      "z2_temp_c": 23.581,
-      "z2_mslp_hpa": 1.589,
-      "z2_rh_pct": 2.173,
-      "z3_temp_c": 2.522,
-      "z3_mslp_hpa": 0.014,
-      "z3_rh_pct": -0.068
+      "z1_temp_c": 22.129,
+      "z1_mslp_hpa": -2.619,
+      "z1_rh_pct": 0.037,
+      "z2_temp_c": 0.466,
+      "z2_mslp_hpa": -19.998,
+      "z2_rh_pct": -0.002,
+      "z3_temp_c": 0.132,
+      "z3_mslp_hpa": -3.289,
+      "z3_rh_pct": -0.079
+    },
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "43003",
+    "time_utc": "2023-02-21T03:00:00+00:00",
+    "variable": "temp_c",
+    "observed": {
+      "temp_c": 60.0,
+      "mslp_hpa": 1014.4,
+      "rh_pct": 80.0
+    },
+    "p_fault": 0.9997002234684409,
+    "severity": "critical",
+    "root_cause": "F6",
+    "explanation": "a soft step-limit or frozen-value rule fired; temp_c is inconsistent with the station's other variables (z=25.7); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.82). Root cause: F6.",
+    "top_factors": [
+      {
+        "feature": "t0_soft",
+        "shap": 1.838885011260547
+      },
+      {
+        "feature": "z2_temp_c",
+        "shap": 1.7425155063742677
+      },
+      {
+        "feature": "slow_t2_temp_c_varratio",
+        "shap": 1.0835829590222283
+      }
+    ],
+    "imputed": {
+      "value": 22.213,
+      "low": 21.324,
+      "high": 23.102,
+      "method": "blend_t2_t3"
+    },
+    "tier_scores": {
+      "t0": [
+        "soft"
+      ],
+      "z1_temp_c": 7.312,
+      "z1_mslp_hpa": -0.028,
+      "z1_rh_pct": -0.081,
+      "z2_temp_c": 25.668,
+      "z2_mslp_hpa": 21.133,
+      "z2_rh_pct": 3.443,
+      "z3_temp_c": 2.62,
+      "z3_mslp_hpa": 0.045,
+      "z3_rh_pct": 0.16
     },
     "model_version": "fusion-3h-0.1"
   },
@@ -303,19 +301,19 @@
     "p_fault": 1.0,
     "severity": "critical",
     "root_cause": "F7",
-    "explanation": "temp_c is inconsistent with the station's other variables (z=nan); rh_pct is inconsistent with the station's other variables (z=nan); mslp_hpa is inconsistent with the station's other variables (z=nan). Root cause: F7.",
+    "explanation": "temp_c is inconsistent with the station's other variables (z=nan); rh_pct is inconsistent with the station's other variables (z=nan); rh_pct deviates nan sigma from this station's own recent history. Root cause: F7.",
     "top_factors": [
       {
         "feature": "z2_temp_c",
-        "shap": 2.7965275871899045
+        "shap": 2.0584280387320804
       },
       {
         "feature": "z2_rh_pct",
-        "shap": 0.9375912859213397
+        "shap": 1.4227195631076048
       },
       {
-        "feature": "z2_mslp_hpa",
-        "shap": 0.7357814464190994
+        "feature": "z1_rh_pct",
+        "shap": 0.7469994587392225
       }
     ],
     "imputed": {
@@ -339,106 +337,106 @@
     "model_version": "fusion-3h-0.1"
   },
   {
-    "station_id": "42103",
-    "time_utc": "2023-05-12T00:00:00+00:00",
-    "variable": "temp_c",
+    "station_id": "42181",
+    "time_utc": "2024-09-08T09:00:00+00:00",
+    "variable": "rh_pct",
     "observed": {
-      "temp_c": -28.860714055939944,
-      "mslp_hpa": 1006.8,
-      "rh_pct": 54.0
+      "temp_c": 27.0,
+      "mslp_hpa": 1004.3,
+      "rh_pct": 0.0
     },
-    "p_fault": 0.9973153729395566,
+    "p_fault": 0.9976580936547994,
     "severity": "critical",
     "root_cause": "F8",
-    "explanation": "a soft step-limit or frozen-value rule fired; z_max=18738.75 contributed; t2_temp_c_varratio shows a sustained bias, drift or variance change (12.28). Root cause: F8.",
+    "explanation": "a soft step-limit or frozen-value rule fired; rh_pct is inconsistent with the station's other variables (z=-14.7); t2_temp_c_varratio shows a sustained bias, drift or variance change (2.28). Root cause: F8.",
     "top_factors": [
       {
         "feature": "t0_soft",
-        "shap": 2.382009128915836
+        "shap": 1.9529006020528168
       },
       {
-        "feature": "z_max",
-        "shap": 1.3642225114359254
+        "feature": "z2_rh_pct",
+        "shap": 1.0484833348734939
       },
       {
         "feature": "slow_t2_temp_c_varratio",
-        "shap": 1.1536988793056575
+        "shap": 0.8818275414063723
       }
     ],
     "imputed": {
-      "value": 23.621,
-      "low": 21.581,
-      "high": 25.66,
+      "value": 79.579,
+      "low": 64.434,
+      "high": 94.723,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
       "t0": [
         "soft"
       ],
-      "z1_temp_c": -18738.746,
-      "z1_mslp_hpa": 0.121,
-      "z1_rh_pct": 0.017,
-      "z2_temp_c": -29.521,
-      "z2_mslp_hpa": -0.953,
-      "z2_rh_pct": -1.966,
-      "z3_temp_c": -3.757,
-      "z3_mslp_hpa": 0.108,
-      "z3_rh_pct": -0.032
-    },
-    "model_version": "fusion-3h-0.1"
-  },
-  {
-    "station_id": "42921",
-    "time_utc": "2023-01-24T18:00:00+00:00",
-    "variable": "temp_c",
-    "observed": {
-      "temp_c": 35.407283415650966,
-      "mslp_hpa": 1014.4,
-      "rh_pct": 68.0
-    },
-    "p_fault": 0.9962048390619457,
-    "severity": "critical",
-    "root_cause": "F9",
-    "explanation": "a soft step-limit or frozen-value rule fired; t2_temp_c_varratio shows a sustained bias, drift or variance change (5.39); z_max=12.69 contributed. Root cause: F9.",
-    "top_factors": [
-      {
-        "feature": "t0_soft",
-        "shap": 2.233888090387233
-      },
-      {
-        "feature": "slow_t2_temp_c_varratio",
-        "shap": 1.3266535256236482
-      },
-      {
-        "feature": "z_max",
-        "shap": 1.2400834133072434
-      }
-    ],
-    "imputed": {
-      "value": 17.362,
-      "low": 16.315,
-      "high": 18.409,
-      "method": "blend_t2_t3"
-    },
-    "tier_scores": {
-      "t0": [
-        "soft"
-      ],
-      "z1_temp_c": 0.226,
-      "z1_mslp_hpa": -0.021,
-      "z1_rh_pct": 0.012,
-      "z2_temp_c": 12.687,
-      "z2_mslp_hpa": 1.492,
-      "z2_rh_pct": 1.867,
-      "z3_temp_c": 1.243,
-      "z3_mslp_hpa": 0.129,
-      "z3_rh_pct": -0.119
+      "z1_temp_c": 0.0,
+      "z1_mslp_hpa": -0.024,
+      "z1_rh_pct": 929.216,
+      "z2_temp_c": -3.227,
+      "z2_mslp_hpa": -0.161,
+      "z2_rh_pct": -14.695,
+      "z3_temp_c": -0.064,
+      "z3_mslp_hpa": 0.111,
+      "z3_rh_pct": -1.518
     },
     "model_version": "fusion-3h-0.1"
   },
   {
     "station_id": "43117",
-    "time_utc": "2025-12-28T06:00:00+00:00",
+    "time_utc": "2023-12-13T12:00:00+00:00",
+    "variable": "temp_c",
+    "observed": {
+      "temp_c": 28.0,
+      "mslp_hpa": 991.9858409262581,
+      "rh_pct": 46.0
+    },
+    "p_fault": 0.9965650683432834,
+    "severity": "critical",
+    "root_cause": "F9",
+    "explanation": "a soft step-limit or frozen-value rule fired; mslp_hpa_roll8_std=11.69 contributed; t3_mslp_hpa_rmean8 shows a sustained bias, drift or variance change (-6.50). Root cause: F9.",
+    "top_factors": [
+      {
+        "feature": "t0_soft",
+        "shap": 2.892042953466188
+      },
+      {
+        "feature": "mslp_hpa_roll8_std",
+        "shap": 0.872617771557392
+      },
+      {
+        "feature": "slow_t3_mslp_hpa_rmean8",
+        "shap": 0.5216071806453677
+      }
+    ],
+    "imputed": {
+      "value": 28.716,
+      "low": 28.156,
+      "high": 29.275,
+      "method": "blend_t2_t3"
+    },
+    "tier_scores": {
+      "t0": [
+        "soft"
+      ],
+      "z1_temp_c": 16.081,
+      "z1_mslp_hpa": -0.068,
+      "z1_rh_pct": 0.016,
+      "z2_temp_c": -2.656,
+      "z2_mslp_hpa": -12.421,
+      "z2_rh_pct": -1.647,
+      "z3_temp_c": -0.052,
+      "z3_mslp_hpa": -2.279,
+      "z3_rh_pct": -0.134
+    },
+    "model_version": "fusion-3h-0.1"
+  },
+  {
+    "station_id": "43117",
+    "time_utc": "2025-12-30T00:00:00+00:00",
     "variable": "temp_c",
     "observed": {
       "temp_c": null,
@@ -448,25 +446,25 @@
     "p_fault": 1.0,
     "severity": "critical",
     "root_cause": "F7",
-    "explanation": "temp_c is inconsistent with the station's other variables (z=nan); rh_pct is inconsistent with the station's other variables (z=nan); mslp_hpa is inconsistent with the station's other variables (z=nan). Root cause: F7.",
+    "explanation": "temp_c is inconsistent with the station's other variables (z=nan); rh_pct is inconsistent with the station's other variables (z=nan); rh_pct deviates nan sigma from this station's own recent history. Root cause: F7.",
     "top_factors": [
       {
         "feature": "z2_temp_c",
-        "shap": 2.803584785088723
+        "shap": 2.0473502550684146
       },
       {
         "feature": "z2_rh_pct",
-        "shap": 0.9596850549456581
+        "shap": 1.4248911722022135
       },
       {
-        "feature": "z2_mslp_hpa",
-        "shap": 0.739990333244648
+        "feature": "z1_rh_pct",
+        "shap": 0.7475534326901603
       }
     ],
     "imputed": {
-      "value": 27.0,
-      "low": 26.999,
-      "high": 27.001,
+      "value": 17.3,
+      "low": 17.299,
+      "high": 17.301,
       "method": "blend_t2_t3"
     },
     "tier_scores": {
@@ -477,9 +475,9 @@
       "z2_temp_c": null,
       "z2_mslp_hpa": null,
       "z2_rh_pct": null,
-      "z3_temp_c": 0.078,
-      "z3_mslp_hpa": -0.574,
-      "z3_rh_pct": 0.275
+      "z3_temp_c": 0.195,
+      "z3_mslp_hpa": 0.0,
+      "z3_rh_pct": 0.0
     },
     "model_version": "fusion-3h-0.1"
   }

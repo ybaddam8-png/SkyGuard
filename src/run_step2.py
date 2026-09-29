@@ -21,6 +21,14 @@ SEED=42; rng=np.random.default_rng(SEED)
 clean=pd.read_parquet(ROOT/'data/clean/observations_clean.parquet').sort_values(['station_id','time_utc']).reset_index(drop=True)
 clean['station_id']=clean.station_id.astype(str); clean['time_utc']=pd.to_datetime(clean.time_utc,utc=True)
 stations=pd.read_csv(ROOT/'stations.csv'); stations['station_id']=stations.station_id.astype(str)
+# default benchmark = in_default_set stations (>= 50 % complete-triplet synoptic coverage; 15 stations).
+# SKYGUARD_ALL_STATIONS=1 adds the low_coverage stations (35 % floor) and writes to separate folders (comparison only).
+import os
+if os.environ.get('SKYGUARD_ALL_STATIONS')=='1':
+ OUT=ROOT/'outputs/all_stations'; BENCH=ROOT/'data/bench/all_stations'; OUT.mkdir(exist_ok=True); (OUT/'figures').mkdir(exist_ok=True); BENCH.mkdir(exist_ok=True)
+else:
+ stations=stations[stations.in_default_set.astype(bool)]
+clean=clean[clean.station_id.isin(stations.station_id)].reset_index(drop=True)
 # exact protected windows, cluster-specific
 windows=[('heatwave_a','a',pd.Timestamp('2024-05-16T18:30Z'),pd.Timestamp('2024-06-19T18:29:59Z')),('biparjoy_a','a',pd.Timestamp('2023-06-16T18:00Z'),pd.Timestamp('2023-06-21T00:00Z')),('monsoon_c','c',pd.Timestamp('2024-07-23T00:00Z'),pd.Timestamp('2024-07-30T00:00Z'))]
 protected=np.zeros(len(clean),bool)
@@ -352,7 +360,7 @@ def window_rates(flag):
  return out
 metrics['calendar_check']={'fusion_excludes':CAL_COLS,'placebo_rule':'each protected window shifted +182 days, applied in both clusters; faults are injected there as anywhere else',
  'no_calendar':window_rates(all_pred>=.5),'with_calendar':window_rates(cal_flag),'with_calendar_alerts_per_1000_clean':event_eval(cal_flag,all_cls)['alerts_per_1000_outside_events_and_protected']}
-inj_f7=row_classes=='F7'
+inj_f7=(row_classes=='F7')&~native_gap  # an F7 event can span a native gap; those rows are native gaps, not injected ones
 def f7_check(cl):
  pr=cl=='F7'; tp=int((pr&inj_f7).sum())
  return {'injected_gap_recall':float(pr[inj_f7].mean()),'precision_excluding_native_gaps':float(tp/max(int(pr[scored].sum()),1)),'precision_including_native_gaps':float(tp/max(int(pr[scored|native_gap].sum()),1)),'native_gap_rows_called_f7':int(pr[native_gap].sum()),'native_gap_rows':int(native_gap.sum())}
@@ -438,7 +446,7 @@ lines += ['', '## Natural extremes on clean rows (test folds, fold mean ± std, 
 ne=metrics['natural_extremes']
 for k,r in ne['no_calendar'].items(): lines.append(f"| {k} | {r['n_rows']:,} | {r['alerts_per_1000_fold_mean']:.1f} ± {r['fold_std']:.1f} | {ne['with_calendar'][k]['alerts_per_1000_fold_mean']:.1f} | {r['ratio_to_clean']:.2f} | "+' | '.join(f"{ne[n][k]['alerts_per_1000_fold_mean']:.1f}" for n in blocks)+' |')
 ft=metrics['fold_test_events']; lines += ['', '## Fold event counts', '', f"Min/max test events per class across folds: {ft['min_max_per_class']}. Min train events per class: {ft['min_train_events_per_class']}. Fold stations (GroupKFold default assignment, no reassignment needed): {ft['fold_stations']}."]
-lines += ['', '## Neighbour policy', '', 'Primary links use 200 km / 500 m. Stations with fewer than two primary neighbours use sparse links widened to 300 km / 800 m and a 0.7 T3 confidence multiplier. A station with zero links makes T3 abstain and fusion treats T3 as missing.', '', '## Honest limitations', '', 'The benchmark is an injected-data estimate over a small 12-station network with substantial native gaps. Results below specification targets, if any, are reported without tuning them away.', '', '## Figures', '', '- `outputs/figures/per_class_f1.png`', '- `outputs/figures/ablation.png`', '- `outputs/figures/confusion_matrix.png`', '- `outputs/figures/example_fault_spans.png`', '- `outputs/figures/heatwave_no_injection.png`']
+lines += ['', '## Neighbour policy', '', 'Primary links use 200 km / 500 m. Stations with fewer than two primary neighbours use sparse links widened to 300 km / 800 m and a 0.7 T3 confidence multiplier. A station with zero links makes T3 abstain and fusion treats T3 as missing.', '', '## Honest limitations', '', f'The benchmark is an injected-data estimate over a small station network ({inj.station_id.nunique()} stations) with substantial native gaps. Results below specification targets, if any, are reported without tuning them away.', '', '## Figures', '', '- `outputs/figures/per_class_f1.png`', '- `outputs/figures/ablation.png`', '- `outputs/figures/confusion_matrix.png`', '- `outputs/figures/example_fault_spans.png`', '- `outputs/figures/heatwave_no_injection.png`']
 (OUT/'benchmark_report.md').write_text('\n'.join(lines)+'\n')
 # scored stream sample / alerts examples
 # ---------- explanations (SHAP) and imputation (T2/T3 blend, T1 fallback) ----------

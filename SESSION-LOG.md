@@ -312,3 +312,33 @@ drift of 0.5-3 °C / 3-15 % RH over 7-14 days has a mean error of half that, whi
 ~4.5 % RH). By final magnitude 5 events are >= 3 and 0 of them are class-correct. This is mainly a
 noise-floor problem for F3 on the current network; the shape features did not separate the few
 events above it. More stations (denser neighbours, lower T3 noise) is the next lever.
+
+## fix/detectability — Stage D: 15-station default, 20-station comparison
+
+Data prep now selects stations automatically from `data/clean/candidate_synoptic_coverage.csv`
+(`model=False`, no interpolation, exact synoptic timestamps, same code path; `meteostat==1.7.6`
+added to requirements.txt; nullable Float64 cast to float64, values unchanged; cadence pinned to
+3-hourly). Cluster (a): 9 stations at >= 50 %; cluster (c): 6 at >= 50 %, so the 35 % fallback
+added 5 `low_coverage` stations (43157, 43002, 43001, 43109, 43057). Re-fetched data for the
+original 12 stations is identical to the previous fetch. Injector event counts scale with station
+count (per-class minimums unchanged); default GroupKFold needed no reassignment.
+
+The first 20-station run exposed a metric bug: F7 precision 1.11, because injected F7 events that
+span a native gap were counted as true positives but excluded from the denominator. Fixed
+(injected-gap rows now exclude native gaps): 20 stations 0.951, 15 stations 0.896.
+
+Decision (the user's, with the reason fixed in advance): the default is the 15-station set (the 35 %
+floor was a fallback; 15-station F1 0.698 is within 0.03 of Stage C's 0.707). `stations.csv` keeps
+all 20 rows with `in_default_set` and `low_coverage`; `SKYGUARD_ALL_STATIONS=1` writes the 20-station
+comparison to `outputs/all_stations/` and `data/bench/all_stations/` (outputs copied from the
+20-station run with the same code). Full tables are in README "Station-set comparison".
+
+15 vs 20 stations: binary F1 0.698 vs 0.651; macro-F1 0.597 vs 0.592; alerts per 1,000 clean steps
+22.9 vs 33.3; false alarms per 1,000 heatwave 3.7 vs 9.1, biparjoy 3.3 vs 6.5, monsoon 0.0 vs 20.0.
+The false-alarm rise came with the 5 low-coverage coastal stations, though the fold assignment and
+injected events also differ between the two runs. Ablation, 15 stations: removing T1 +0.051 (0/5
+folds), T2 +0.014 (0/5), T3 +0.030 (1/5): every tier now helps, unlike the 12-station runs.
+Drift (F3) class-correct event recall 0.48 over 30 events (12 stations: 0.24 over 24).
+Versus Stage C (12 stations): binary F1 0.707 -> 0.698, macro-F1 0.603 -> 0.597, F3 F1 0.172 -> 0.197,
+F4 0.325 -> 0.208, F9 0.224 -> 0.300; heatwave false alarms 1.9 -> 3.7, biparjoy 0 -> 3.3.
+`make all` (pytest 8 passed), `make sync-dashboard`, `pnpm run build` and `pnpm run check` pass.

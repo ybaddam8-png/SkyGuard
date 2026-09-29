@@ -21,6 +21,7 @@ BOUNDS = {'temp_c': (-80.0, 60.0), 'mslp_hpa': (870.0, 1085.0), 'rh_pct': (0.0, 
 # requested minimums: F1 60, F2 40, F3 24, F4 30, F5 30, F6 30, F7 30, F8 60, F9 30
 MIN_EVENTS = {'F1': 70, 'F2': 60, 'F3': 24, 'F4': 36, 'F5': 36, 'F6': 30, 'F7': 36, 'F8': 70, 'F9': 36}
 MIN_STATIONS = 8
+BASE_STATIONS = 12  # MIN_EVENTS were set for the original 12-station network
 DURATION_STEPS = {'F1': (1, 1), 'F2': (4, 24), 'F3': (56, 112), 'F4': (8, 80), 'F5': (4, 80),
                   'F6': (4, 80), 'F7': (1, 8), 'F8': (1, 1), 'F9': (1, 16)}
 PLACEMENT_ORDER = ['F3', 'F4', 'F5', 'F6', 'F2', 'F9', 'F7', 'F1', 'F8']  # long events first
@@ -71,9 +72,10 @@ def inject_faults(base, protected, seed=42):
         return d, pd.DataFrame(labels)
     station_ids = list(station_groups.keys())
 
+    scale = len(station_ids) / BASE_STATIONS  # event counts grow with the network; per-class minimums never shrink
     for cls in PLACEMENT_ORDER:
         order = []
-        for e in range(MIN_EVENTS[cls]):
+        for e in range(max(MIN_EVENTS[cls], int(np.ceil(MIN_EVENTS[cls] * scale)))):
             if e % len(station_ids) == 0:
                 order = list(rng.permutation(station_ids))
             sid, st, n = _place(rng, cls, order, e % len(station_ids), station_groups, occupied)
