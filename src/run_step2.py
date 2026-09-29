@@ -435,10 +435,16 @@ fig,ax=plt.subplots(figsize=(8,7)); im=ax.imshow(cm_total, cmap='Blues'); ax.set
 sample=inj[inj.injected_faults.str.len()>0].head(1).station_id.iloc[0]; eg=inj[inj.station_id==sample].head(300); fig,ax=plt.subplots(3,1,figsize=(12,7),sharex=True); 
 for a,v in zip(ax,VARS): a.plot(eg.time_utc,eg[v],lw=.8); a.set_ylabel(v)
 fig.suptitle(f'Example injected station {sample}'); fig.tight_layout(); fig.savefig(OUT/'figures/example_fault_spans.png',dpi=160); plt.close(fig)
-fig,ax=plt.subplots(figsize=(12,4)); pwin=inj[protected]; ax.plot(pwin.time_utc,pwin.temp_c,'.',ms=1,color='#1677b8',label='temp_c')
-alert_mask=protected&(all_pred>=.5); n_alerts=int(alert_mask.sum())
-if n_alerts: ax.plot(inj.loc[alert_mask,'time_utc'],inj.loc[alert_mask,'temp_c'],'x',ms=7,color='#e15759',label='alert (P(fault)≥0.5)')
-ax.legend(loc='upper right',fontsize=8); ax.set_title(f'Protected real-event window sample (no injection) — {n_alerts} alerts overlaid'); fig.tight_layout(); fig.savefig(OUT/'figures/heatwave_no_injection.png',dpi=160); plt.close(fig)
+# one panel per protected window; counts use the metrics.json mask (window rows minus native gaps) and are checked against it
+wins_fig=['heatwave_a','biparjoy_a','monsoon_c']; fig,axs=plt.subplots(3,1,figsize=(12,8.5))
+for ax,wname in zip(axs,wins_fig):
+ wm=(window_name==wname)&~native_gap; am=wm&(all_pred>=.5); n_obs=int(wm.sum()); n_al=int(am.sum()); w_m=metrics['false_alarms_per_1000_by_window'][wname]
+ assert n_obs==w_m['n_obs'] and abs(1000*n_al/max(n_obs,1)-(w_m['per_1000'] or 0))<1e-9
+ ax.plot(inj.loc[wm,'time_utc'],inj.loc[wm,'temp_c'],'.',ms=1.5,color='#1677b8',label='temp_c (observed rows)')
+ if n_al: ax.plot(inj.loc[am,'time_utc'],inj.loc[am,'temp_c'],'x',ms=7,color='#e15759',label='alert, P(fault) ≥ 0.5')
+ ax.set_ylabel('temp_c'); ax.legend(loc='upper right',fontsize=8)
+ ax.set_title(f"{wname}: {inj.loc[wm,'station_id'].nunique()} stations, {n_obs:,} observations, {n_al} alert{'' if n_al==1 else 's'} ({w_m['per_1000']:.1f} per 1,000)",fontsize=10)
+fig.suptitle('Protected windows, no injection: alerts at P(fault) ≥ 0.5 (native-gap rows excluded, as in metrics.json)'); fig.tight_layout(); fig.savefig(OUT/'figures/heatwave_no_injection.png',dpi=160); plt.close(fig)
 # benchmark report
 lines=['# SkyGuard AI benchmark report','', '## Run configuration','', '- 3-hourly cadence; 1 step = 3 h; lags 1/2/4/8; rolling windows 1/8.', '- Grouped 5-fold cross-validation by station; mean and standard deviation reported.', '- LightGBM models capped at 200 trees; LSTM and edge skipped under free-plan scope.', '- Faults injected outside cluster-specific protected windows; native source gaps are not F7 labels.', '', '## Data and injector','', f"- Injected rows: {len(inj):,}; labelled fault observations: {len(labels):,}; stations: {inj.station_id.nunique()}; protected rows: {protected.sum():,}.", f"- Label counts: {metrics['label_counts']}.", '- Injector samples by event count (min per class: F1 60, F2 40, F3 24, F4 30, F5 30, F6 30, F7 30, F8 60, F9 30; spread over >=8 stations). Durations in steps (1 step = 3 h): F1/F8 1, F2 4–24, F3 56–112, F4 8–80, F5 4–80, F6 4–80, F7 1–8, F9 1–16.', '- **Documented deviation:** F3 drift lasts 7–14 days (56–112 steps), shorter than the spec\'s 7–45 days, so 24 drift events fit in the coverage budget. F9 is back to spec (1–16 steps = 1–48 h). F3 final error follows spec section 6: 0.5–3 °C, 3–15 % RH, 0.5–3 hPa, variable T 45 % / RH 45 % / P 10 % (RH was 0.5–3 % before fix/detectability).', '- Root-cause head is trained only on injector-labelled rows plus protected-window weather rows (spec section 8); a row receives a root cause only if the binary head flags it (P(fault) >= 0.5), otherwise "weather".', '', '## Metrics (fold mean ± std)','', '| Metric | Mean | Std | |\n|---|---:|---:|']
 for n in ['precision','recall','f1','macro_f1','t0_f1','iforest_f1','trivial_f1','ece_raw','ece_calibrated','no_T1_f1','no_T2_f1','no_T3_f1']:
