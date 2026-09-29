@@ -376,3 +376,70 @@ is set on the row. Regenerated via `make all` (explanations need the fold models
 (binary F1 0.698, macro-F1 0.597). Checked all 110 explanation sentences in `alerts_examples.json` and
 `scored_stream_sample.json`: none quotes a number above 10 sigma. README gained "Limits and reading of
 the PS". `make all` (pytest 8 passed), `make sync-dashboard`, `pnpm run build` pass.
+
+## fix/dashboard-data — full out-of-fold export, curated replay, dashboard on real engine output
+
+Diagnosis: the old export kept only the last 14 days of the stream (2025-12-17 to 2025-12-31, 1,695
+rows, 15 stations). Most stations had stopped reporting by then, and the rows were ordered by
+station, so `head(100)` returned 100 rows of 42101 Patiala. All three values were missing on every
+row, and the deterministic gap rule labelled them F7.
+
+Export (`src/run_step2.py`, export step only; models, features, thresholds and metrics unchanged):
+`scored_stream.parquet` now holds all 131,520 out-of-fold station-steps (15 stations, 2023-01-01 to
+2025-12-31). Each row is scored by the fold model that held its station out. New
+`replay_stream.json` (1.10 MB) has these segments: A = heatwave_a, 42181/42348/42101, 5 alerts in 815
+observations (1 critical); B = F1-F9 showcase events plus one missed F3 event (42348, rh_pct drift);
+C = monsoon_c, 43003/43014, 0 alerts in 114 observations. Sensor health uses spec F-10, computed on
+the out-of-fold T3 residuals and documented in the README. Alert sentences no longer quote NaN values
+for missing observations. `tests/test_replay.py` checks the counts, the missing-value rule, the
+F1-F9 coverage and that the parquet has one row per dataset row. metrics.json is identical except
+for the wall-clock latency timer.
+
+Dashboard (`client/src/App.tsx`, `index.css`): everything is read from `replay_stream.json`,
+`metrics.json` and `stations.csv`. Removed the client-side "Inject anomaly" feature, because it
+invented p_fault values, and the fake "next update" timer. The stations.csv parser read the wrong
+columns (a quoted field contains commas); it now reads the trailing columns from the end. Map: 15
+default stations, with the 5 low-coverage stations behind a toggle; fit-bounds with padding; the
+banner is computed from the replay cursor. Queue: 72 alerts, sorted by severity then time, scrolling
+inside its card. Drill-down plots the station's real rows (observed, engine estimate, neighbour
+estimate), shades the injected span and marks the selected alert. Drawer: tier consensus and the
+sentence both come from the witness flags. Health: F-10 per sensor, "no data" when a sensor has none.
+Benchmark figures use object-fit contain and open larger on click.
+
+Verified: `make all` (9 passed), `make sync-dashboard`, `pnpm run check`, `pnpm run build`. Playwright
+at 1920x1080 in a fresh context found 0 console errors. It saw 15/20 map markers, 72 queue rows,
+3 shaded fault spans, 15 health cards, 5 figures and a working lightbox. Screenshots 01-06 are
+regenerated.
+Finding: most stations score low on F-10 health. Injected F6/F8 values inflate sigma_r, and the bias
+term |b|/tau is strict at tau = 0.5 C / 0.5 hPa. That is how the spec formula reads the injected
+stream; the weights were not changed.
+
+## fix/dashboard-data — explanation variable, F-10 tolerance, segment caption
+
+0. `outputs/scored_stream.parquet` untracked (.gitignore). The branch was unpushed, so the export commit
+   was rebuilt without the 19 MB blob. `tests/test_replay.py` reads the parquet only after `make all`
+   rebuilds it; a fresh clone plus `make all` passes.
+1. Sentence builder: the flagged variable is the one with the largest positive SHAP mass. The top-3
+   factors and the witnesses are built for that variable, and untemplated "x=0.00 contributed" factors
+   are dropped. Gap rows say "No observation received for N steps" and quote no sigma. The binary-head
+   top factor used by `explanation_quality` is unchanged, so metrics.json is unchanged apart from the
+   latency timer. On detected single-variable fault rows, the share whose leading variable equals the
+   injected variable went from 0.803 to 0.929:
+   F1 0.943 -> 0.989, F2 0.774 -> 0.934, F3 0.846 -> 0.896, F4 0.833 -> 0.890, F5 0.715 -> 0.920,
+   F6 0.873 -> 0.971, F8 0.977 -> 0.989, F9 0.812 -> 0.848. For F7 (215 rows), the gap sentence went
+   from 0 % to 100 % of rows, and the share quoting sigma went from 100 % to 0 %.
+2. Health diagnosis (`src/health_diagnosis.py`, `outputs/health_diagnosis.json`). On clean stretches
+   (no injected fault and no alert in 30 days): median |b|/tau 0.72, f30 0, variance ratio 0.91, H 58.6,
+   with 20 % of steps at H = 0. On injected stretches: |b|/tau 3.22, f30 0.08, ratio 1.89, H 0. The
+   healthy EWMA-bias std is about one tolerance (median sd/tau: temp 1.40, pressure 1.09, RH 0.93), so
+   the bias term saturates on clean data. Adopted tau_eff = max(spec tolerance, 3 x healthy EWMA-bias
+   std), taken from the clean stream only; this is a documented deviation from the spec, and the weights
+   are unchanged. Acceptance test on 74 F3/F4 bias windows vs 744 clean windows: AUC-ROC 0.769 -> 0.799;
+   median H (bias / clean) 0 / 53 -> 49 / 84; clean station-variables at H >= 80 2 % -> 76 %. AUC is
+   above 0.65, so health is not labelled experimental. Days-to-maintenance was never shown.
+3. Segment B caption: "Injected events shown for illustration; detection rates are in the benchmark
+   view."
+4. Screenshot 03 re-taken on B-F5 (42101, injected on temp_c; the sentence leads with temp_c; p 0.997,
+   critical). Screenshot 04 re-taken. 01, 02, 05 and 06 are unchanged.
+Verified: `make all` (9 passed), `pnpm run check`, `pnpm run build`, and 0 console errors in
+Playwright.

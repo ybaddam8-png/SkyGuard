@@ -1,0 +1,74 @@
+{
+ "terms_by_stretch": [
+  {
+   "stretch": "clean (no injected fault, no alert in 30 d)",
+   "|b|/tau": 0.721,
+   "f30": 0.0,
+   "var_ratio": 0.914,
+   "H_spec": 58.622,
+   "H_eff": 85.494,
+   "share_H0_spec": 0.204
+  },
+  {
+   "stretch": "injected fault on this variable",
+   "|b|/tau": 3.223,
+   "f30": 0.082,
+   "var_ratio": 1.889,
+   "H_spec": 0.0,
+   "H_eff": 22.945,
+   "share_H0_spec": 0.717
+  }
+ ],
+ "ewma_bias_healthy_std": [
+  {
+   "v": "mslp_hpa",
+   "median_sd_b": 0.543,
+   "tau": 0.5,
+   "median_sd_b_over_tau": 1.087,
+   "share_3sd_above_tau": 1.0,
+   "median_tau_eff": 1.63
+  },
+  {
+   "v": "rh_pct",
+   "median_sd_b": 4.667,
+   "tau": 5.0,
+   "median_sd_b_over_tau": 0.933,
+   "share_3sd_above_tau": 1.0,
+   "median_tau_eff": 14.002
+  },
+  {
+   "v": "temp_c",
+   "median_sd_b": 0.699,
+   "tau": 0.5,
+   "median_sd_b_over_tau": 1.398,
+   "share_3sd_above_tau": 1.0,
+   "median_tau_eff": 2.098
+  }
+ ],
+ "acceptance": {
+  "spec": {
+   "auc_roc": 0.769,
+   "n_bias_windows": 74,
+   "n_clean_windows": 744,
+   "median_H_bias": 0.0,
+   "median_H_clean": 53.3,
+   "share_clean_windows_H80": 0.239,
+   "share_clean_station_vars_H80": 0.022,
+   "auc_roc_clean_no_alert_only": 0.77,
+   "auc_roc_F3": 0.75,
+   "auc_roc_F4": 0.781
+  },
+  "eff": {
+   "auc_roc": 0.799,
+   "n_bias_windows": 74,
+   "n_clean_windows": 744,
+   "median_H_bias": 49.4,
+   "median_H_clean": 84.0,
+   "share_clean_windows_H80": 0.599,
+   "share_clean_station_vars_H80": 0.756,
+   "auc_roc_clean_no_alert_only": 0.795,
+   "auc_roc_F3": 0.778,
+   "auc_roc_F4": 0.812
+  }
+ }
+}
