@@ -292,3 +292,23 @@ The gap rule changes nothing: because native gaps carry weight 0, the learned mo
 `is_missing` to F7 by itself. F7's 0.99 F1 is therefore definitional either way: it rests on
 excluding native gaps from scoring. Treating native gaps as negatives (fix/slow-faults) gave F7
 F1 0.104. `make all` and pytest pass.
+
+## fix/detectability — Stage C: drift labelling
+
+Changes: slope features on the T1/T3 residuals are now z-scores of slope (divided by the
+station-variable's healthy-period std of the same causal slope, clean base only); causal shape
+features over the last 56 steps: R^2 of a straight-line fit (ramp) and R^2 of the best single
+step (offset), on T1 and T3 residuals. SNR reported two ways: mean error over the event (used for
+the detectability table) and final magnitude (second table). `make all` and pytest pass.
+
+Result vs Stage B: binary F1 0.694 -> 0.707, macro-F1 0.587 -> 0.603, F3 F1 0.156 -> 0.172,
+F4 0.292 -> 0.325, F9 0.215 -> 0.224, alerts per 1,000 clean steps 23.3 -> 20.1. F3 class-correct
+event recall 0.286 -> 0.238 (21 detectable events, so +/-1 event); F4 0.556 -> 0.611.
+
+Drift at mean-error SNR >= 3: 1 event, not class-correct (0/1). Below 0.5 -> diagnosis, move on.
+Diagnosis: by mean-error SNR, 20 of 21 detectable F3 events sit below SNR 2 (8 below 1). A spec
+drift of 0.5-3 °C / 3-15 % RH over 7-14 days has a mean error of half that, which on this
+6-station-per-cluster network is at or under the T3 noise floor (56-step-mean std ~0.64 °C,
+~4.5 % RH). By final magnitude 5 events are >= 3 and 0 of them are class-correct. This is mainly a
+noise-floor problem for F3 on the current network; the shape features did not separate the few
+events above it. More stations (denser neighbours, lower T3 noise) is the next lever.

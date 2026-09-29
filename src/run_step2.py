@@ -187,6 +187,16 @@ def _cusum(a,k=.5,h=5.):
    if sp>h: sp=0.; alarm[i]=1  # decision interval h: alarm, then reset
    if sn<-h: sn=0.; alarm[i]=1
  return cp,cn,alarm
+def _shape(a,W=56):
+ # drift vs offset over the last W steps (causal): R^2 of a straight-line fit vs R^2 of the best single-step fit (split 8..W-8)
+ from numpy.lib.stride_tricks import sliding_window_view
+ lin=np.zeros(len(a)); stp=np.zeros(len(a)); a0=np.nan_to_num(a); t=np.arange(W)-(W-1)/2; stt=float((t*t).sum()); ks=np.arange(8,W-7)
+ for idx in st_pos.values():
+  if len(idx)<W: continue
+  M=sliding_window_view(a0[idx],W); S=M.sum(1); SS=(M*M).sum(1); sst=SS-S*S/W; ok=sst>1e-9; den=np.where(ok,sst,1)
+  b=(M@t)/stt; cs=np.cumsum(M,1)[:,ks-1]; sse=SS[:,None]-cs**2/ks-(S[:,None]-cs)**2/(W-ks)
+  lin[idx[W-1:]]=np.where(ok,b*b*stt/den,0); stp[idx[W-1:]]=np.where(ok,1-sse.min(1)/den,0)
+ return lin,stp
 def _residuals(tier,v,frame,feat):
  if tier in ('t1','t2'):
   m,c=models[v][.5] if tier=='t1' else t2_models[(v,.5)]
@@ -202,7 +212,9 @@ for v in VARS:
   if tier=='t2': continue
   for w in (8,24,56): X[pre+f'rmean{w}']=np.nan_to_num(_roll(zn,w))
   X[pre+'level_change']=np.nan_to_num(_roll(zn,8)-_grp(_roll(zn,24)).shift(16).to_numpy())  # mean of last 8 minus mean of steps t-39..t-16
-  for w in (24,56): X[pre+f'slope{w}']=np.nan_to_num(_slope(zn,w))
+  zc_=(_residuals(tier,v,clean,Xclean)-mu)/sd  # same row order as X (asserted above): healthy-period spread of the slope
+  for w in (24,56): X[pre+f'slope{w}_z']=np.nan_to_num(_slope(zn,w)/pd.Series(st_key).map(pd.Series(_slope(zc_,w)).groupby(st_key).std()).clip(lower=1e-6).to_numpy())
+  X[pre+'r2lin56'],X[pre+'r2step56']=_shape(zn)
   cp,cn,al=_cusum(zn); X[pre+'cusum_pos']=cp; X[pre+'cusum_neg']=cn; X[pre+'cusum_alarms56']=_roll(al,56,'sum',1)
 # score columns
 zcols=[c for c in X if c.startswith(('z1_','z2_','z3_'))]; t0cols=[c for c in X if c.endswith(('_range_flag','_step_flag','_zero4'))]
@@ -233,8 +245,9 @@ for (sid,var,cls,a,b),_ in labels.groupby(['station_id','variable','class','star
   e['det_rows']=rows[~predet[rows]]; e['t_det']=int(time_ns[e['det_rows'][0]]) if len(e['det_rows']) else None
   cross=rows[f3err[rows]>=PRD[var]]; e['t_prd']=int(time_ns[cross[0]]) if len(cross) else None
  h=healthy_t3[var] if var in VARS else None
- if cls in ('F3','F4'): e['snr']=mag/h.at[str(sid),'std56']
- elif cls=='F5': e['snr']=mag*float(clean.loc[clean.station_id==str(sid),var].std())/h.at[str(sid),'std']
+ if cls=='F3': e['snr_final']=mag/h.at[str(sid),'std56']; e['snr']=float(np.mean(f3err[rows]))/h.at[str(sid),'std56'] if len(rows) else np.nan  # snr = mean-error SNR
+ elif cls=='F4': e['snr']=e['snr_final']=mag/h.at[str(sid),'std56']
+ elif cls=='F5': e['snr']=e['snr_final']=mag*float(clean.loc[clean.station_id==str(sid),var].std())/h.at[str(sid),'std']
  events.append(e)
 fold_of_sid={s:fi for fi,(_,te) in enumerate(folds) for s in np.unique(groups[te])}
 ev_counts=pd.DataFrame([{'fold':fold_of_sid[e['sid']]+1,'class':e['class']} for e in events]).value_counts().unstack('class').reindex(columns=CLASSES).fillna(0).astype(int).reindex(range(1,6),fill_value=0)
@@ -312,18 +325,18 @@ def event_eval(flag,cls_pred):
 variants={'full':(all_pred>=.5,all_cls),**{n:(abl_flag[n],abl_cls[n]) for n in blocks}}
 metrics['event_level']={n:event_eval(fl,cl) for n,(fl,cl) in variants.items()}
 SNR_BINS=[('<1',0,1),('1-2',1,2),('2-4',2,4),('>4',4,np.inf),('>=3',3,np.inf)]
-def snr_curve(flag,cls_pred):
+def snr_curve(flag,cls_pred,key='snr'):
  out={}
  for c in ('F3','F4','F5'):
   out[c]={}
   for b,lo,hi in SNR_BINS:
-   evs=[e for e in events if e['class']==c and len(e['det_rows']) and lo<=e.get('snr',np.nan)<hi]
+   evs=[e for e in events if e['class']==c and len(e['det_rows']) and lo<=e.get(key,np.nan)<hi]
    if not evs: out[c][b]={'n_events':0}; continue
    rows=np.concatenate([e['det_rows'] for e in evs])
    out[c][b]={'n_events':len(evs),'event_recall_any':float(np.mean([flag[e['det_rows']].any() for e in evs])),'event_recall_class':float(np.mean([(flag[e['det_rows']]&(cls_pred[e['det_rows']]==c)).any() for e in evs])),
     'row_recall_any':float(flag[rows].mean()),'row_recall_class':float((flag[rows]&(cls_pred[rows]==c)).mean())}
  return out
-metrics['snr_curve']={n:snr_curve(fl,cl) for n,(fl,cl) in variants.items()}
+metrics['snr_curve']={n:snr_curve(fl,cl) for n,(fl,cl) in variants.items()}; metrics['snr_curve_final_magnitude']={'full':snr_curve(*variants['full'],key='snr_final')}
 metrics['noise_floor_t3']={v:{'median_std1':float(healthy_t3[v]['std'].median()),'median_std56':float(healthy_t3[v]['std56'].median()),'median_mdb56':float(3*healthy_t3[v]['std56'].median()),'per_station_std56':healthy_t3[v]['std56'].round(4).to_dict()} for v in VARS}
 metrics['evaluation_definitions']={'predetectable_f3_rows':int(predet.sum()),'native_gap_rows_excluded':int(native_gap.sum()),'scored_rows':int(scored.sum()),'tolerance':TOL,'prd_threshold':PRD}
 metrics['per_class_f1_by_variant']={n:{c:float(f1_score((row_classes[scored]==c).astype(int),(cl[scored]==c).astype(int),zero_division=0)) for c in CLASSES} for n,(fl,cl) in variants.items()}
@@ -394,13 +407,15 @@ for wname,wr in metrics['false_alarms_per_1000_by_window'].items():
  lines.append(f"| {wname} | {wr['n_obs']:,} | {wr['per_1000']:.2f} |" if wr['per_1000'] is not None else f"| {wname} | 0 | n/a |")
 ev=metrics['event_level']
 fmt=lambda x,f='.3f': 'n/a' if x is None else format(x,f)
-lines += ['', '## Evaluation definitions', '', f"- **F3 pre-detectable rows.** A drift row counts as a fault (training positive and scored row) only from the first step where the injected error reaches the tolerance (0.5 °C, 5 % RH, 0.5 hPa). Earlier rows ({predet.sum():,}) get sample weight 0 and are excluded from row-level scoring; the event stays in the event table. F3 event detection only counts flags from the tolerance crossing onward. Delay is reported from the tolerance crossing and from the PRD crossing (1 °C, 5 % RH, 1 hPa); a negative PRD delay means the drift was flagged before it reached the PRD threshold.", f"- **F7 and native gaps.** A missing expected timestamp is a comms fault whatever its cause, and the label file cannot separate injected from native gaps. A deterministic T0 gap rule flags every missing timestamp as F7 (P(fault) = 1). F7 recall is measured on injected gaps; the {native_gap.sum():,} native-gap rows are excluded from all row-level scoring (so from the F7 precision denominator), from the clean-step alert rate and from the protected-window false-alarm rates. F7 recall is therefore 1.0 by construction and says nothing about the learned model.", '- **SNR.** F3/F4: injected magnitude / std of the 56-step mean of the station-variable healthy T3 residual. F5: injected noise std / 1-step std of the healthy T3 residual.']
+lines += ['', '## Evaluation definitions', '', f"- **F3 pre-detectable rows.** A drift row counts as a fault (training positive and scored row) only from the first step where the injected error reaches the tolerance (0.5 °C, 5 % RH, 0.5 hPa). Earlier rows ({predet.sum():,}) get sample weight 0 and are excluded from row-level scoring; the event stays in the event table. F3 event detection only counts flags from the tolerance crossing onward. Delay is reported from the tolerance crossing and from the PRD crossing (1 °C, 5 % RH, 1 hPa); a negative PRD delay means the drift was flagged before it reached the PRD threshold.", f"- **F7 and native gaps.** A missing expected timestamp is a comms fault whatever its cause, and the label file cannot separate injected from native gaps. A deterministic T0 gap rule flags every missing timestamp as F7 (P(fault) = 1). F7 recall is measured on injected gaps; the {native_gap.sum():,} native-gap rows are excluded from all row-level scoring (so from the F7 precision denominator), from the clean-step alert rate and from the protected-window false-alarm rates. F7 recall is therefore 1.0 by construction and says nothing about the learned model.", '- **SNR.** Detectability tables use MEAN-ERROR SNR: F3 = mean injected error over the event (about half the final magnitude for a ramp) / std of the 56-step mean of the station-variable healthy T3 residual; F4 = offset / same std. A second table uses final-magnitude SNR for F3. F5: injected noise std / 1-step std of the healthy T3 residual.']
 lines += ['', '## Event-level detection (alongside row-level metrics)', '', 'An event counts as detected if any row inside its detectable window has P(fault) >= 0.5. Delay = hours from the start of the detectable window to the first flagged row (detected events only).', '', '| Class | Events | Detectable | Recall | Recall (class correct) | Median delay (h) |', '|---|---:|---:|---:|---:|---:|']
 for c in CLASSES: r=ev['full']['per_class'][c]; lines.append(f"| {c} | {r['n_events']} | {r['n_detectable']} | {fmt(r['recall'])} | {fmt(r['recall_class_correct'])} | {fmt(r['median_delay_h'],'.1f')} |")
 r=ev['full']['per_class']['F3']; lines.append(f"\nF3 median delay from PRD crossing: {fmt(r['median_delay_from_prd_h'],'.1f')} h over {r['n_detected_crossing_prd']} detected events that reach the PRD threshold.")
-lines += ['', '## Detectability curve (recall by SNR bin, full model)', '', '| Class | SNR bin | Events | Event recall (any class) | Event recall (class correct) | Row recall (any class) | Row recall (class correct) |', '|---|---|---:|---:|---:|---:|---:|']
+lines += ['', '## Detectability curve (recall by MEAN-ERROR SNR bin, full model)', '', '| Class | SNR bin | Events | Event recall (any class) | Event recall (class correct) | Row recall (any class) | Row recall (class correct) |', '|---|---|---:|---:|---:|---:|---:|']
 for c,bins in metrics['snr_curve']['full'].items():
  for b,r in bins.items(): lines.append(f"| {c} | {b} | {r['n_events']} | {fmt(r.get('event_recall_any'))} | {fmt(r.get('event_recall_class'))} | {fmt(r.get('row_recall_any'))} | {fmt(r.get('row_recall_class'))} |")
+lines += ['', '### Same, F3 by FINAL-MAGNITUDE SNR', '', '| Class | SNR bin | Events | Event recall (any class) | Event recall (class correct) | Row recall (any class) | Row recall (class correct) |', '|---|---|---:|---:|---:|---:|---:|']
+for b,r in metrics['snr_curve_final_magnitude']['full']['F3'].items(): lines.append(f"| F3 | {b} | {r['n_events']} | {fmt(r.get('event_recall_any'))} | {fmt(r.get('event_recall_class'))} | {fmt(r.get('row_recall_any'))} | {fmt(r.get('row_recall_class'))} |")
 nf=metrics['noise_floor_t3']; lines += ['', 'Healthy T3 noise floor (median over stations; 3 sigma of the 56-step mean): '+'; '.join(f"{v} {nf[v]['median_mdb56']:.2f}" for v in VARS)+'.']
 lines += ['', '| Variant | Alerts | Alerts / 1,000 clean steps (outside events, protected windows and native gaps) | Share of alerts inside an injected event |', '|---|---:|---:|---:|']
 for n,r in ev.items(): lines.append(f"| {n} | {r['n_alerts']:,} | {r['alerts_per_1000_outside_events_and_protected']:.2f} | {r['share_alerts_inside_event']:.3f} |")
