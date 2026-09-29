@@ -9,28 +9,36 @@ T2/T3-blended imputation) have all been run. `outputs/metrics.json` and
 `outputs/benchmark_report.md` are real results from this pipeline, not placeholders.
 
 Current benchmark (5-fold grouped-by-station CV, fold mean ± std; regenerate with
-`make bench`). **These numbers come from the event-count injector and are not
-like-for-like comparable to earlier README numbers (F1 0.584, macro-F1 0.411), which came
-from the old coverage-budget injector that produced too few slow-fault events.**
+`make bench`). **Not like-for-like with earlier numbers:** fix/slow-faults (binary F1 0.484,
+macro-F1 0.433) used the same event-count injector but different evaluation definitions (see
+"Evaluation definitions" below: F7 gap rule, F3 pre-detectable rows, native gaps excluded), and the
+original coverage-budget injector (F1 0.584, macro-F1 0.411) produced too few slow-fault events.
 
 | Metric | Mean | Std |
 |---|---:|---:|
-| Fusion model F1 (binary fault/no-fault) | 0.484 | 0.066 |
-| Macro-F1 across F1-F9 (fold mean) | 0.440 | 0.030 |
-| WMO-rules (T0-only) baseline F1 | 0.413 | 0.063 |
-| Isolation Forest baseline F1 | 0.230 | 0.054 |
-| "Always fault" trivial baseline F1 | 0.126 | 0.006 |
-| ECE, raw probabilities | 0.127 | 0.014 |
-| ECE, after isotonic calibration | 0.043 | 0.009 |
+| Fusion model F1 (binary fault/no-fault) | 0.694 | 0.044 |
+| Macro-F1 across F1-F9 (fold mean) | 0.577 | 0.025 |
+| WMO-rules (T0-only, incl. gap rule) baseline F1 | 0.491 | 0.060 |
+| Isolation Forest baseline F1 | 0.430 | 0.087 |
+| "Always fault" trivial baseline F1 | 0.127 | 0.010 |
+| ECE, raw probabilities | 0.058 | 0.013 |
+| ECE, after isotonic calibration | 0.025 | 0.005 |
 
-Scoring latency (row-by-row, fold 0's test set, n=500): p50 0.95 ms, p95 1.21 ms.
+Scoring latency (row-by-row, fold 0's test set, n=500): p50 1.42 ms, p95 2.17 ms.
 
-False alarms per 1,000 observations inside protected windows (P(fault)>=0.5, should be
-low since these windows are never fault-injected): heatwave_a 11.0/1000 (1,632 obs),
-biparjoy_a 4.8/1000 (210 obs), monsoon_c 78.9/1000 (342 obs).
+False alarms per 1,000 observations inside protected windows (P(fault)>=0.5, native-gap rows
+excluded): heatwave_a 1.9/1000 (1,609 obs), biparjoy_a 0.0/1000 (209 obs), monsoon_c 0.0/1000 (311 obs).
+Alerts per 1,000 clean steps (outside events, protected windows and native gaps):
+21.6.
 
-Dataset: 105,216 station-times across 12 stations, 7,065 labelled fault
+Dataset: 105,216 station-times across 12 stations, 7,413 labelled fault
 observations, 2,184 rows inside protected windows.
+
+**Healthy-period baseline.** Every T1, T2 and T3 residual is centred and scaled by that
+station-variable's own mean and std on the clean base (never neighbours', labels or injected
+values) before the causal slow-signal features are computed (rolling means 8/24/56, level change,
+least-squares slope 24/56, two-sided CUSUM k=0.5, h=5 with reset). T2 is a pure cross-variable
+LightGBM quantile model (no own lags or rolling stats of the target).
 
 **Injector (event-count sampling).** Minimum events per class across the 12 stations
 (F1 60, F2 40, F3 24, F4 30, F5 30, F6 30, F7 30, F8 60, F9 30; the code uses slightly
@@ -58,10 +66,13 @@ drift events fit in the coverage budget.
 every class and every training set at least 18 (per-fold counts and station lists are in
 `outputs/metrics.json` under `fold_test_events` and in `outputs/benchmark_report.md`). No reassignment was needed.
 
-**What's still weak:** macro-F1 across the 9 fault classes is well under the spec's 0.90 target
-and F3 (drift) and F4 (offset) stay near zero row-level F1 even with adequate event counts;
-see `outputs/benchmark_report.md` (event-level recall, per-class ablation) and `SESSION-LOG.md`.
-The `monsoon_c` false-alarm rate is high relative to the other two windows and it is the smallest window.
+**What's still weak:** macro-F1 (0.58) is well under the spec's 0.90 target. F3 drift is
+detected (event recall 0.62) but rarely classified as drift (class-correct event recall 0.14,
+0 of 5 events at SNR >= 3; mostly called F4 offset): the least-squares slope of the residual does
+not separate a drift from the residual's own slow wander at these magnitudes. F9 F1 is 0.18.
+F7's 0.99 F1 comes from a deterministic gap rule, not the model. Stations were not expanded and
+the coherent-event gate and operating-point selection are not implemented (work stopped at the
+Stage 2 stop rule; see `SESSION-LOG.md`).
 
 Scope:
 

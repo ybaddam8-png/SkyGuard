@@ -209,3 +209,38 @@ the old number was mostly the model flagging native gaps inside the window, whic
 excluded. Alerts per 1,000 clean steps 44.1 -> 31.0. F3 F1 0.080, F4 0.144, F9 0.179.
 Class-correct event recall at SNR >= 3: F3 0.60 (5 events), F4 0.58 (19 events).
 Learned-model evidence for slow faults is unchanged in this stage (no new features yet).
+
+## fix/detectability — Stage 2: slow-signal features (STOP RULE TRIGGERED)
+
+Changes: T2 is now a pure cross-variable LightGBM quantile model (other two variables' values,
+lags, rolling stats, climatology anomaly, time, site, target station climatology; no own lags or
+rolling stats), replacing the `clim_z` proxy. Healthy-period baseline: every T1/T2/T3 residual is
+centred and scaled by the station-variable's own clean-data mean and std. On the T1 and T3
+residuals: rolling mean 8/24/56, level change (mean of last 8 minus mean of steps t-39..t-16),
+causal least-squares slope 24/56, two-sided CUSUM (k = 0.5, h = 5, reset after alarm) and CUSUM
+alarm count over 56 steps; variance ratio on T1/T2/T3. The dead z3-based slow features were
+removed. Ablation blocks cover `t2_q*` and all `slow_t{1,2,3}_*`. `make all` and pytest pass.
+
+Result vs Stage 1 (same definitions): binary F1 0.621 -> 0.694, macro-F1 0.544 -> 0.577,
+F3 F1 0.080 -> 0.133, F4 0.144 -> 0.277, ECE raw 0.097 -> 0.058, alerts per 1,000 clean steps
+31.0 -> 21.6, protected-window false alarms heatwave 1.2 -> 1.9, biparjoy 4.8 -> 0, monsoon 3.2 -> 0.
+F3's detectable-window flag rate now rises 21 % -> 30 % across the event (was a flat 4.5 %).
+
+Stop rule: class-correct event recall at SNR >= 3 is F4 0.68 (19 events, passes) but F3 0.00
+(5 events, any-class 0.60). Stopped before Stages 3-4 as instructed.
+
+Diagnosis: 2 of the 5 SNR >= 3 F3 events (both pressure) are not flagged at all; the other 3 are
+flagged at 3-14 % of rows and called F4 or F2. Across all scored F3 rows, 84 are called F3 and
+82 F4. The drift-shape feature does not separate: median |slope56| of the normalised T3 residual
+is 0.012 on F3 temperature rows, identical to weather rows (0.012), while level change separates
+F4 (0.93) from weather (0.45). The residual is strongly autocorrelated (Stage 0: the 56-step mean
+std is only 2.4x below the 1-step std), so a 1-3 °C ramp over 7-14 days looks like the residual's
+own slow wander. The SNR definition (final magnitude / 56-step-mean std) also overstates a ramp's
+detectability: the mean error over a window is about half the final magnitude. With 5 events the
+0/5 is weak evidence, but no stage produced class-correct drift detection. T3 slow features hurt
+F3 classification (no_T3 class-correct F3 event recall 0.24 vs 0.14 full) and help F4
+(no_T3 F4 F1 0.200 vs 0.277). Also: `doy_sin`/`doy_cos` are the top binary-head features by split
+count, which suggests the head spends capacity on timing noise.
+
+Not done (stop rule): Stage 3 (more stations), Stage 4 (monsoon diagnosis, coherent-event gate,
+training-fold operating point, AUC-PR).

@@ -85,7 +85,7 @@ def make_features(frame):
   out[v+'_step_flag']=((out[v+'_absdiff1'].fillna(0)>out[v+'_step_limit'].fillna(1.0))).astype(int)
   out[v+'_range_flag']=((x[v] < {'temp_c':-80,'mslp_hpa':870,'rh_pct':0}[v])|(x[v] > {'temp_c':60,'mslp_hpa':1085,'rh_pct':100}[v])).astype(int)
   out[v+'_zero4']=grp.transform(lambda z:z.diff().abs().rolling(4,min_periods=4).sum()).fillna(999).lt({'temp_c':.1,'mslp_hpa':.1,'rh_pct':1}[v]).astype(int)
-  out[v+'_clim_z']=(x[v].to_numpy()-mu_by_var[v])/sd_by_var[v]
+  out[v+'_clim_z']=(x[v].to_numpy()-mu_by_var[v])/sd_by_var[v]; out[v+'_clim_mu']=mu_by_var[v]
  # missing expected timestamp (all three variables absent) and length of the gap just before this row
  miss=x[VARS].isna().all(axis=1).astype(int); out['is_missing']=miss
  run=miss.groupby([x.station_id,(miss==0).cumsum()]).cumsum(); out['gap_length_before']=run.groupby(x.station_id).shift(1).fillna(0)
@@ -134,7 +134,7 @@ scored=~predet&~native_gap; weight=scored.astype(float)
 print('pre-detectable F3 rows',int(predet.sum()),'of',int((row_classes=='F3').sum()),'; native-gap rows',int(native_gap.sum()),flush=True)
 # Train T1 quantile models on clean features (global; models capped 200 trees). Predictions/residuals are features.
 _,Xclean=make_features(clean); Xclean=Xclean[feature_cols]
-models={}; healthy_t1={}
+models={}
 for v in VARS:
  target=clean[v].fillna(clean[v].median())
  # use compact feature set to keep training robust
@@ -145,30 +145,61 @@ for v in VARS:
   m.fit(Xclean[cols],target); models[v][q]=(m,cols)
   X[f't1_q{int(q*100)}_{v}']=m.predict(X[cols])
  X['z1_'+v]=(Xraw[v]-X[f't1_q50_{v}'])/((X[f't1_q90_{v}']-X[f't1_q10_{v}'])/2.563+1e-3)
- healthy_t1[v]=(clean[v]-models[v][.5][0].predict(Xclean[models[v][.5][1]])).groupby(clean.station_id).std()
 # healthy-period baseline: per station-variable stats of the raw T3 residual on the clean base only
 def healthy_stats(res,valid):
  k=clean.station_id.values; r=pd.Series(np.where(valid,res,np.nan))
  return pd.DataFrame({'mean':r.groupby(k).mean(),'std':r.groupby(k).std(),'std56':r.groupby(k).transform(lambda z:z.rolling(56,min_periods=28).mean()).groupby(k).std()})
-healthy_t3={v:healthy_stats(Xclean['r3_'+v].to_numpy(),((Xclean[v+'_missing']==0)&(Xclean['neighbour_confidence_'+v]>0)).to_numpy()) for v in VARS}
-# T2 simple residual proxy from cross-variable climatological expected values
-for v in VARS:
- other=[q for q in VARS if q!=v]; X['z2_'+v]=(X[v+'_clim_z']-X[other[0]+'_clim_z'].fillna(0)*0.15-X[other[1]+'_clim_z'].fillna(0)*0.15)
-# ---------- slow-signal evidence (spec section 8): causal per-station features, past and current steps only ----------
-st_key=Xraw.station_id.astype(str).values; st_pos={sid:np.flatnonzero(st_key==sid) for sid in np.unique(st_key)}
-def _by_station(ser,fn): return ser.groupby(st_key,sort=False).transform(fn)
+# T2: pure cross-variable model (spec section 7). Inputs are the OTHER two variables (values, lags, rolling stats,
+# climatology anomaly), time, site and the target's station climatology; never the target's own lags or rolling stats.
+t2_models={}
 for v in VARS:
  other=[q for q in VARS if q!=v]
- healthy_t2=(Xclean[v+'_clim_z']-Xclean[other[0]+'_clim_z']*0.15-Xclean[other[1]+'_clim_z']*0.15).groupby(clean.station_id.values).std()
- for tier,resid,healthy in [('t1',Xraw[v]-X[f't1_q50_{v}'],healthy_t1[v]),('t2',X['z2_'+v],healthy_t2)]:
-  h=pd.Series(st_key).map(healthy).fillna(healthy.median()).clip(lower=1e-3).to_numpy()
-  X[f'slow_{tier}_{v}_varratio']=(_by_station(resid,lambda z:z.rolling(8,min_periods=4).std())/h).fillna(1.0)
- for w in (8,24): X[f'slow_t3_{v}_rmean{w}']=_by_station(X['z3_'+v],lambda z:z.rolling(w,min_periods=1).mean())
- zc=X['z3_'+v].clip(-5,5).to_numpy(); cpos=np.zeros(len(zc)); cneg=np.zeros(len(zc))
+ cols=[o+sfx for o in other for sfx in ('','_lag1','_lag2','_lag4','_lag8','_roll8_mean','_roll8_std','_diff1','_clim_z','_missing')]+['hour_sin','hour_cos','doy_sin','doy_cos','elevation_m','lat',v+'_clim_mu']
+ ok=clean[v].notna().to_numpy()
+ for q in [.1,.5,.9]:
+  m=LGBMRegressor(objective='quantile',alpha=q,n_estimators=200,max_depth=7,num_leaves=31,learning_rate=.05,verbosity=-1,random_state=SEED)
+  m.fit(Xclean.loc[ok,cols],clean.loc[ok,v]); t2_models[(v,q)]=(m,cols); X[f't2_q{int(q*100)}_{v}']=m.predict(X[cols])
+ X['z2_'+v]=(Xraw[v]-X[f't2_q50_{v}'])/((X[f't2_q90_{v}']-X[f't2_q10_{v}'])/2.563+1e-3)
+# ---------- healthy-period baseline + slow-signal evidence (spec section 8) ----------
+# Each station-variable residual (T1: obs - q50, T2: obs - q50, T3: raw neighbour residual) is centred and scaled by that
+# station's own mean and std on the clean base (never neighbours', labels or injected values). All windows are causal.
+st_key=Xraw.station_id.astype(str).values; st_pos={sid:np.flatnonzero(st_key==sid) for sid in np.unique(st_key)}
+kpos=np.zeros(len(X))
+for idx in st_pos.values(): kpos[idx]=np.arange(len(idx))
+def _grp(a): return pd.Series(a).groupby(st_key,sort=False)
+def _roll(a,w,fn='mean',mp=None): return _grp(a).transform(lambda z:getattr(z.rolling(w,min_periods=mp or max(2,w//2)),fn)()).to_numpy()
+def _slope(a,w):
+ ok=~np.isnan(a); n=_roll(ok.astype(float),w,'sum',1); k=np.where(ok,kpos,0.); r=np.where(ok,a,0.)
+ sk,sr,skr,skk=(_roll(q,w,'sum',1) for q in (k,r,k*r,k*k)); den=n*skk-sk*sk
+ return np.where((n>=w//2)&(den>0),(n*skr-sk*sr)/np.where(den>0,den,1),np.nan)
+def _cusum(a,k=.5,h=5.):
+ zc=np.clip(a,-5,5); cp=np.zeros(len(a)); cn=np.zeros(len(a)); alarm=np.zeros(len(a))
  for idx in st_pos.values():
-  sp=sn=0.0
-  for i in idx: sp=max(0.0,sp+zc[i]-.5); sn=min(0.0,sn+zc[i]+.5); cpos[i]=sp; cneg[i]=sn
- X[f'slow_t3_{v}_cusum_pos']=cpos; X[f'slow_t3_{v}_cusum_neg']=cneg
+  sp=sn=0.
+  for i in idx:
+   z=zc[i]
+   if z==z: sp=max(0.,sp+z-k); sn=min(0.,sn+z+k)
+   cp[i]=sp; cn[i]=sn
+   if sp>h: sp=0.; alarm[i]=1  # decision interval h: alarm, then reset
+   if sn<-h: sn=0.; alarm[i]=1
+ return cp,cn,alarm
+def _residuals(tier,v,frame,feat):
+ if tier in ('t1','t2'):
+  m,c=models[v][.5] if tier=='t1' else t2_models[(v,.5)]
+  return (frame[v]-m.predict(feat[c])).to_numpy(dtype=float)
+ return np.where((feat[v+'_missing']==0)&(feat['neighbour_confidence_'+v]>0),feat['r3_'+v],np.nan).astype(float)
+healthy={(tier,v):healthy_stats(_residuals(tier,v,clean,Xclean),clean[v].notna().to_numpy()) for tier in ('t1','t2','t3') for v in VARS}
+healthy_t3={v:healthy[('t3',v)] for v in VARS}
+for v in VARS:
+ for tier in ('t1','t2','t3'):
+  hs=healthy[(tier,v)]; mu=pd.Series(st_key).map(hs['mean']).fillna(0).to_numpy(); sd=pd.Series(st_key).map(hs['std']).fillna(hs['std'].median()).clip(lower=1e-3).to_numpy()
+  zn=(_residuals(tier,v,Xraw,X)-mu)/sd; pre=f'slow_{tier}_{v}_'
+  X[pre+'res']=np.nan_to_num(zn); X[pre+'varratio']=np.nan_to_num(_roll(zn,8,'std',4),nan=1.0)
+  if tier=='t2': continue
+  for w in (8,24,56): X[pre+f'rmean{w}']=np.nan_to_num(_roll(zn,w))
+  X[pre+'level_change']=np.nan_to_num(_roll(zn,8)-_grp(_roll(zn,24)).shift(16).to_numpy())  # mean of last 8 minus mean of steps t-39..t-16
+  for w in (24,56): X[pre+f'slope{w}']=np.nan_to_num(_slope(zn,w))
+  cp,cn,al=_cusum(zn); X[pre+'cusum_pos']=cp; X[pre+'cusum_neg']=cn; X[pre+'cusum_alarms56']=_roll(al,56,'sum',1)
 # score columns
 zcols=[c for c in X if c.startswith(('z1_','z2_','z3_'))]; t0cols=[c for c in X if c.endswith(('_range_flag','_step_flag','_zero4'))]
 X['t0_hard']=X[[c for c in X if c.endswith('_range_flag')]].max(axis=1); X['t0_soft']=X[[c for c in X if c.endswith(('_step_flag','_zero4'))]].max(axis=1); X['z_max']=X[zcols].abs().max(axis=1)
@@ -176,7 +207,7 @@ X['t0_hard']=X[[c for c in X if c.endswith('_range_flag')]].max(axis=1); X['t0_s
 # ---------- grouped 5-fold CV ----------
 folds=list(GroupKFold(n_splits=5).split(X,y,groups=groups)); fold_metrics=[]; all_pred=np.zeros(len(y)); all_cls=np.full(len(y),'weather',object); cm_total=np.zeros((10,10),int); fold_feature_importance=[]; fold_of_row=np.zeros(len(y),int); fold_models=[]
 # baseline T0 and isolation forest per fold; ablations train fusion with selected evidence blocks
-blocks={'no_T1':[c for c in X.columns if c.startswith(('z1_','t1_q','slow_t1_'))],'no_T2':[c for c in X.columns if c.startswith(('z2_','slow_t2_'))],'no_T3':[c for c in X.columns if c.startswith(('z3_','neighbour_','slow_t3_'))]}
+blocks={'no_T1':[c for c in X.columns if c.startswith(('z1_','t1_q','slow_t1_'))],'no_T2':[c for c in X.columns if c.startswith(('z2_','t2_q','slow_t2_'))],'no_T3':[c for c in X.columns if c.startswith(('z3_','neighbour_','slow_t3_'))]}
 base_cols=[c for c in X.columns if c not in ['station_code'] and not c.startswith('r3_')]
 def ece(probs,truth,n_bins=10):
  probs=np.asarray(probs,dtype=float); truth=np.asarray(truth,dtype=float); edges=np.linspace(0,1,n_bins+1); total=len(probs); e=0.0
